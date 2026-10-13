@@ -1,0 +1,831 @@
+diff --git a/app/globals.css b/app/globals.css
+index 4c2dd0b..dbb3819 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -169,4 +169,27 @@ kbd { min-width: 19px; height: 19px; padding: 0 4px; display: inline-grid; place
+   .race-controls-hint > span { font-size: 5px; }
+   .race-controls-hint kbd { min-width: 14px; height: 14px; font-size: 6px; }
+   .menu-footer span:first-child { max-width: 170px; }
+-}
+\ No newline at end of file
++}
++/* ---- Controller status / connection (ESP32) ---- */
++.connection-state[data-state="connecting"] .status-dot, .controller-panel[data-state="connecting"] .status-dot { background: var(--orange); box-shadow: 0 0 11px rgba(241, 106, 71, .7); animation: controller-pulse 1s ease-in-out infinite; }
++.connection-state[data-state="disconnected"] .status-dot, .controller-panel[data-state="disconnected"] .status-dot { background: rgba(232, 229, 219, .45); box-shadow: none; }
++.controller-check[data-ready="false"] { color: rgba(232, 229, 219, .5); }
++.controller-badge[data-state="connecting"] .controller-icon { color: var(--orange); }
++
++.controller-panel { width: min(100%, 360px); margin-top: 18px; display: grid; gap: 10px; padding: 12px 13px; border: 1px solid rgba(232, 229, 219, .26); background: rgba(22, 27, 28, .34); backdrop-filter: blur(6px); font: 8px var(--mono); }
++.pause-panel .controller-panel { width: 100%; margin-top: 24px; }
++.controller-panel-head { display: flex; align-items: center; gap: 8px; }
++.controller-panel-head strong { font-weight: 500; letter-spacing: 0; }
++.controller-panel-input { margin-left: auto; color: rgba(232, 229, 219, .66); }
++.controller-switch { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid rgba(232, 229, 219, .26); }
++.controller-switch button, .controller-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 0; background: transparent; color: rgba(232, 229, 219, .72); font: 8px var(--mono); cursor: pointer; transition: background .15s, color .15s; }
++.controller-switch button + button { border-left: 1px solid rgba(232, 229, 219, .26); }
++.controller-switch button[aria-pressed="true"] { background: var(--acid); color: var(--ink); }
++.controller-switch button:disabled, .controller-button:disabled { opacity: .42; cursor: not-allowed; }
++.controller-actions { display: flex; gap: 8px; }
++.controller-button { flex: 1; border: 1px solid rgba(232, 229, 219, .32); }
++.controller-button:not(:disabled):hover { color: var(--acid); border-color: var(--acid); }
++.controller-button-primary { color: var(--acid); border-color: var(--acid); }
++.controller-note { margin: 0; color: rgba(232, 229, 219, .62); font: 8px/1.6 var(--mono); }
++
++@keyframes controller-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+diff --git a/components/ui/ArcadeShell.tsx b/components/ui/ArcadeShell.tsx
+index 9ac9132..e9c8711 100644
+--- a/components/ui/ArcadeShell.tsx
++++ b/components/ui/ArcadeShell.tsx
+@@ -1,9 +1,11 @@
+ "use client";
+ 
+ import { useEffect } from "react";
+-import { ArrowLeft, Cpu, Flag, Gauge, Pause, Play, RotateCcw, Wifi } from "lucide-react";
++import { ArrowLeft, Flag, Gauge, Pause, Play, RotateCcw, Wifi } from "lucide-react";
+ import RaceViewport from "@/components/game/RaceViewport";
++import ControllerPanel, { ControllerBadge, ControllerChip } from "@/components/ui/ControllerPanel";
+ import { RACE_LAPS } from "@/game/physics/racingPhysics";
++import { useControllerStore } from "@/lib/state/controllerStore";
+ import { useGameStore } from "@/lib/state/gameStore";
+ 
+ function formatTime(seconds: number) {
+@@ -27,7 +29,7 @@ function MenuScreen({ onStart }: { onStart: () => void }) {
+       <header className="topbar">
+         <BrandMark />
+         <div className="menu-top-meta"><span>INDEPENDENT ARCADE SYSTEMS</span><span className="topbar-divider" /><span>BUILD 001</span></div>
+-        <div className="connection-state"><span className="status-dot" />LOCAL INPUT</div>
++        <ControllerChip />
+       </header>
+ 
+       <div className="menu-layout">
+@@ -45,6 +47,7 @@ function MenuScreen({ onStart }: { onStart: () => void }) {
+             <div className="mode-item mode-locked"><span className="mode-number">02</span><span>FLIGHT</span><span className="mode-soon">IN DEVELOPMENT</span></div>
+             <div className="mode-item mode-locked"><span className="mode-number">03</span><span>SPACE</span><span className="mode-soon">IN DEVELOPMENT</span></div>
+           </div>
++          <ControllerPanel />
+         </section>
+ 
+         <aside className="menu-side-note">
+@@ -114,7 +117,7 @@ function RaceHud({ onPause, onMenu }: { onPause: () => void; onMenu: () => void
+           <div className="speed-value">{Math.round(speed).toString().padStart(3, "0")}</div>
+           <div className="nitro-readout"><span>NITRO</span><div className="nitro-track"><i style={{ width: `${nitro}%` }} /></div><span>{Math.round(nitro)}%</span></div>
+         </section>
+-        <div className="controller-badge"><span className="controller-icon"><Cpu size={17} /></span><span><strong>KEYBOARD</strong><small>CONNECTED · LOCAL</small></span><span className="controller-check">✓</span></div>
++        <ControllerBadge />
+       </div>
+ 
+       <div className="race-controls-hint"><span>STEER <kbd>A</kbd><kbd>D</kbd></span><span>THROTTLE <kbd>W</kbd></span><span>BRAKE <kbd>S</kbd></span><span>BOOST <kbd>SPACE</kbd></span><span>HANDBRAKE <kbd>SHIFT</kbd></span></div>
+@@ -124,6 +127,7 @@ function RaceHud({ onPause, onMenu }: { onPause: () => void; onMenu: () => void
+ }
+ 
+ function PauseScreen({ onResume, onRestart, onMenu, finished }: { onResume: () => void; onRestart: () => void; onMenu: () => void; finished: boolean }) {
++  const inputKind = useControllerStore((state) => state.inputKind);
+   return (
+     <div className="modal-scrim">
+       <section className="pause-panel" aria-labelledby="pause-title">
+@@ -137,8 +141,9 @@ function PauseScreen({ onResume, onRestart, onMenu, finished }: { onResume: () =
+         </button>
+         <button className="text-action" onClick={onRestart}><RotateCcw size={14} /> RESTART RACE</button>
+         <button className="text-action" onClick={onMenu}><ArrowLeft size={14} /> RETURN TO ARCADE</button>
++        <ControllerPanel />
+       </section>
+-      <div className="modal-controller"><Wifi size={14} /><span>KEYBOARD INPUT ACTIVE</span></div>
++      <div className="modal-controller"><Wifi size={14} /><span>{inputKind === "esp32" ? "ESP32" : "KEYBOARD"} INPUT ACTIVE</span></div>
+     </div>
+   );
+ }
+diff --git a/components/ui/ControllerPanel.tsx b/components/ui/ControllerPanel.tsx
+new file mode 100644
+index 0000000..343396d
+--- /dev/null
++++ b/components/ui/ControllerPanel.tsx
+@@ -0,0 +1,129 @@
++"use client";
++
++import { useEffect } from "react";
++import { Cpu, Keyboard, Unplug, Usb } from "lucide-react";
++import { connectESP32, disconnectESP32, selectInput } from "@/game/input/controllerHub";
++import { isWebSerialSupported } from "@/game/input/esp32/WebSerialTransport";
++import { type ControllerStatus, type InputKind, useControllerStore } from "@/lib/state/controllerStore";
++
++const STATUS_LABEL: Record<ControllerStatus, string> = {
++  disconnected: "DISCONNECTED",
++  connecting: "CONNECTING",
++  connected: "CONNECTED",
++};
++
++const INPUT_LABEL: Record<InputKind, string> = { keyboard: "KEYBOARD", esp32: "ESP32" };
++
++/** Input actually driving the car is always "ready"; for ESP32 that means the link is up. */
++function useActiveInputReady() {
++  const inputKind = useControllerStore((state) => state.inputKind);
++  const status = useControllerStore((state) => state.status);
++  return inputKind === "keyboard" || status === "connected";
++}
++
++/** Short, non-interactive indicator for the race HUD. */
++export function ControllerBadge() {
++  const inputKind = useControllerStore((state) => state.inputKind);
++  const status = useControllerStore((state) => state.status);
++  const linkMode = useControllerStore((state) => state.linkMode);
++  const ready = useActiveInputReady();
++
++  return (
++    <div className="controller-badge" data-state={status}>
++      <span className="controller-icon">{inputKind === "esp32" ? <Cpu size={17} /> : <Keyboard size={17} />}</span>
++      <span>
++        <strong>INPUT: {INPUT_LABEL[inputKind]}</strong>
++        <small>
++          ESP32 · {STATUS_LABEL[status]}
++          {linkMode === "mock" ? " · SIMULATED" : ""}
++        </small>
++      </span>
++      <span className="controller-check" data-ready={ready}>{ready ? "✓" : "•"}</span>
++    </div>
++  );
++}
++
++/** Compact one-line input indicator for the menu top bar. */
++export function ControllerChip() {
++  const inputKind = useControllerStore((state) => state.inputKind);
++  const status = useControllerStore((state) => state.status);
++  return (
++    <div className="connection-state" data-state={inputKind === "esp32" ? status : "connected"}>
++      <span className="status-dot" />INPUT: {INPUT_LABEL[inputKind]}
++    </div>
++  );
++}
++
++/** Connect / switch / simulate controls (menu + pause screen; needs a mouse click, so not shown mid-race). */
++export default function ControllerPanel() {
++  const inputKind = useControllerStore((state) => state.inputKind);
++  const status = useControllerStore((state) => state.status);
++  const linkMode = useControllerStore((state) => state.linkMode);
++  const serialSupported = useControllerStore((state) => state.serialSupported);
++  const message = useControllerStore((state) => state.message);
++  const setSerialSupported = useControllerStore((state) => state.setSerialSupported);
++
++  // Feature-detect after mount so server and client render the same markup.
++  useEffect(() => setSerialSupported(isWebSerialSupported()), [setSerialSupported]);
++
++  const connected = status === "connected";
++  const connecting = status === "connecting";
++
++  return (
++    <section className="controller-panel" aria-label="Controller" data-state={status}>
++      <div className="controller-panel-head">
++        <span className="status-dot" />
++        <strong>{STATUS_LABEL[status]}</strong>
++        <span className="controller-panel-input">INPUT: {INPUT_LABEL[inputKind]}{linkMode === "mock" ? " · SIMULATED" : ""}</span>
++      </div>
++
++      <div className="controller-switch" role="group" aria-label="Input source">
++        <button type="button" aria-pressed={inputKind === "keyboard"} onClick={() => selectInput("keyboard")}>
++          <Keyboard size={12} /> KEYBOARD
++        </button>
++        <button
++          type="button"
++          aria-pressed={inputKind === "esp32"}
++          disabled={!connected}
++          title={connected ? undefined : "Connect an ESP32 first"}
++          onClick={() => selectInput("esp32")}
++        >
++          <Cpu size={12} /> ESP32
++        </button>
++      </div>
++
++      <div className="controller-actions">
++        {connected ? (
++          <button type="button" className="controller-button" onClick={() => void disconnectESP32()}>
++            <Unplug size={12} /> DISCONNECT
++          </button>
++        ) : (
++          <button
++            type="button"
++            className="controller-button controller-button-primary"
++            disabled={connecting || !serialSupported}
++            onClick={() => void connectESP32("serial")}
++          >
++            <Usb size={12} /> {connecting ? "CONNECTING..." : "CONNECT ESP32"}
++          </button>
++        )}
++        {!connected && (
++          <button
++            type="button"
++            className="controller-button"
++            disabled={connecting}
++            title="Feed simulated joystick data through the same parser, no hardware needed"
++            onClick={() => void connectESP32("mock")}
++          >
++            SIMULATE
++          </button>
++        )}
++      </div>
++
++      {!serialSupported && !connected && (
++        <p className="controller-note">Web Serial needs Chrome or Edge on https:// or localhost. SIMULATE still works.</p>
++      )}
++      {message && <p className="controller-note">{message}</p>}
++    </section>
++  );
++}
+diff --git a/game/input/ControllerInputSource.ts b/game/input/ControllerInputSource.ts
+index be007ad..504d4a7 100644
+--- a/game/input/ControllerInputSource.ts
++++ b/game/input/ControllerInputSource.ts
+@@ -19,4 +19,8 @@ export const neutralControls: ControllerControls = {
+   brake: 0,
+   action1: false,
+   action2: false,
+-};
+\ No newline at end of file
++};
++
++/** Spec-friendly aliases. The game consumes an `InputState` and never knows which `InputSource` produced it. */
++export type InputState = ControllerControls;
++export type InputSource = ControllerInputSource;
+diff --git a/game/input/ESP32InputSource.ts b/game/input/ESP32InputSource.ts
+new file mode 100644
+index 0000000..107d63b
+--- /dev/null
++++ b/game/input/ESP32InputSource.ts
+@@ -0,0 +1,81 @@
++import { type ControllerControls, type ControllerInputSource, neutralControls } from "./ControllerInputSource";
++import {
++  DEFAULT_JOYSTICK_CALIBRATION,
++  type JoystickCalibration,
++  joystickToInputState,
++  parseControllerLine,
++} from "./esp32/esp32Protocol";
++import type { LineTransport, TransportStatus } from "./esp32/LineTransport";
++import { MockTransport } from "./esp32/MockTransport";
++import { WebSerialTransport } from "./esp32/WebSerialTransport";
++
++/** If no valid sample arrives for this long (board reset, cable wobble) the car gets neutral input, not stuck input. */
++const STALE_AFTER_MS = 500;
++
++export type ESP32LinkMode = "serial" | "mock";
++export type ESP32StatusListener = (status: TransportStatus, detail?: string, mode?: ESP32LinkMode) => void;
++
++/**
++ * InputSource backed by an ESP32. It owns the connection (serial or mock) and exposes the latest
++ * joystick reading as a normalized InputState. Connection lifetime is independent of start()/stop():
++ * those only follow the race phase, while the serial link stays open across pause/menu.
++ */
++export class ESP32InputSource implements ControllerInputSource {
++  readonly label = "ESP32";
++
++  private transport: LineTransport | null = null;
++  private latest: ControllerControls = neutralControls;
++  private lastSampleAt = -Infinity;
++  private connected = false;
++  private statusListener: ESP32StatusListener | null = null;
++
++  constructor(private readonly calibration: JoystickCalibration = DEFAULT_JOYSTICK_CALIBRATION) {}
++
++  setStatusListener(listener: ESP32StatusListener | null) {
++    this.statusListener = listener;
++  }
++
++  start() {}
++
++  stop() {
++    this.latest = neutralControls;
++  }
++
++  read(): ControllerControls {
++    if (!this.connected || performance.now() - this.lastSampleAt > STALE_AFTER_MS) return neutralControls;
++    return this.latest;
++  }
++
++  async connect(mode: ESP32LinkMode) {
++    if (this.transport) await this.disconnect();
++
++    const handlers = {
++      onLine: (line: string) => this.handleLine(line),
++      onStatus: (status: TransportStatus, detail?: string) => this.handleStatus(status, detail, mode),
++    };
++    this.transport = mode === "mock" ? new MockTransport(handlers) : new WebSerialTransport(handlers);
++    await this.transport.connect();
++  }
++
++  async disconnect() {
++    const transport = this.transport;
++    this.transport = null;
++    await transport?.disconnect();
++  }
++
++  private handleLine(line: string) {
++    const sample = parseControllerLine(line);
++    if (!sample) return; // boot logs, partial lines, junk
++    this.latest = joystickToInputState(sample, this.calibration);
++    this.lastSampleAt = performance.now();
++  }
++
++  private handleStatus(status: TransportStatus, detail: string | undefined, mode: ESP32LinkMode) {
++    this.connected = status === "connected";
++    if (status !== "connected") {
++      this.latest = neutralControls;
++      if (status === "disconnected") this.transport = null;
++    }
++    this.statusListener?.(status, detail, mode);
++  }
++}
+diff --git a/game/input/InputManager.ts b/game/input/InputManager.ts
+index c525606..dbbb649 100644
+--- a/game/input/InputManager.ts
++++ b/game/input/InputManager.ts
+@@ -3,12 +3,22 @@ import { type ControllerControls, type ControllerInputSource, neutralControls }
+ export class InputManager {
+   private active = false;
+ 
+-  constructor(private readonly source: ControllerInputSource) {}
++  constructor(private source: ControllerInputSource) {}
+ 
+   get label() {
+     return this.source.label;
+   }
+ 
++  /** Hot-swap the active source (keyboard <-> ESP32). The game keeps calling read() and never notices. */
++  setSource(next: ControllerInputSource) {
++    if (next === this.source) return;
++    if (this.active) {
++      this.source.stop();
++      next.start();
++    }
++    this.source = next;
++  }
++
+   start() {
+     if (this.active) return;
+     this.source.start();
+@@ -24,4 +34,4 @@ export class InputManager {
+   read(): ControllerControls {
+     return this.active ? this.source.read() : neutralControls;
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/game/input/controllerHub.ts b/game/input/controllerHub.ts
+new file mode 100644
+index 0000000..40af8dc
+--- /dev/null
++++ b/game/input/controllerHub.ts
+@@ -0,0 +1,57 @@
++import { useControllerStore, type InputKind } from "@/lib/state/controllerStore";
++import { type ControllerInputSource } from "./ControllerInputSource";
++import { ESP32InputSource, type ESP32LinkMode } from "./ESP32InputSource";
++import { KeyboardInputSource } from "./KeyboardInputSource";
++
++/**
++ * Single place that owns the input sources. They live at module level (not inside React) because the
++ * ESP32 serial connection must survive menu -> race -> pause transitions and must be opened from a click.
++ *
++ *   InputSource
++ *   ├── KeyboardInputSource
++ *   ├── ESP32InputSource
++ *   └── MobileInputSource   (future: add here, plus an InputKind entry in controllerStore)
++ */
++const keyboardSource = new KeyboardInputSource();
++const esp32Source = new ESP32InputSource();
++
++export function getInputSource(kind: InputKind): ControllerInputSource {
++  switch (kind) {
++    case "esp32":
++      return esp32Source;
++    case "keyboard":
++    default:
++      return keyboardSource;
++  }
++}
++
++// ESP32 connection status -> UI store.
++esp32Source.setStatusListener((status, detail, mode) => {
++  const store = useControllerStore.getState();
++  const connectionLost = status === "disconnected" && store.inputKind === "esp32";
++
++  store.setConnection(status, status === "disconnected" ? null : (mode ?? null), detail ?? null);
++
++  if (status === "connected") store.setInputKind("esp32");
++  // Never leave the player with a dead car: fall back to keyboard if the controller goes away mid-session.
++  if (connectionLost) {
++    store.setInputKind("keyboard");
++    store.setConnection("disconnected", null, detail ? `${detail} - switched to keyboard` : "ESP32 disconnected - switched to keyboard");
++  }
++});
++
++/** Call from a click handler: the serial port chooser requires a user gesture. */
++export function connectESP32(mode: ESP32LinkMode) {
++  return esp32Source.connect(mode);
++}
++
++export function disconnectESP32() {
++  return esp32Source.disconnect();
++}
++
++/** ESP32 can only be selected while connected; keyboard is always available. */
++export function selectInput(kind: InputKind) {
++  const store = useControllerStore.getState();
++  if (kind === "esp32" && store.status !== "connected") return;
++  store.setInputKind(kind);
++}
+diff --git a/game/input/esp32/LineTransport.ts b/game/input/esp32/LineTransport.ts
+new file mode 100644
+index 0000000..329156b
+--- /dev/null
++++ b/game/input/esp32/LineTransport.ts
+@@ -0,0 +1,15 @@
++export type TransportStatus = "disconnected" | "connecting" | "connected";
++
++export type TransportHandlers = {
++  /** One complete text line (without the newline). */
++  onLine: (line: string) => void;
++  /** `detail` carries a human-readable reason on disconnect/error. */
++  onStatus: (status: TransportStatus, detail?: string) => void;
++};
++
++/** Anything that can deliver newline-delimited text lines: real serial port, mock generator, later WebSocket... */
++export interface LineTransport {
++  readonly kind: "serial" | "mock";
++  connect(): Promise<void>;
++  disconnect(): Promise<void>;
++}
+diff --git a/game/input/esp32/MockTransport.ts b/game/input/esp32/MockTransport.ts
+new file mode 100644
+index 0000000..044823d
+--- /dev/null
++++ b/game/input/esp32/MockTransport.ts
+@@ -0,0 +1,75 @@
++import type { LineTransport, TransportHandlers } from "./LineTransport";
++
++const SEND_INTERVAL_MS = 20; // ~50 Hz, similar to what a real sketch would send
++
++type MockSample = { x: number; y: number; button: boolean };
++
++declare global {
++  interface Window {
++    /** Dev helper, only present while the simulated ESP32 is connected. */
++    __esp32Mock?: {
++      /** Send one sample (object) or a raw line (string) exactly as the ESP32 would. Pauses the demo pattern. */
++      send: (sample: MockSample | string) => void;
++      /** Resume the automatic demo pattern. */
++      demo: () => void;
++    };
++  }
++}
++
++/**
++ * Simulated ESP32. Emits the same newline-delimited JSON a real board would, so the parser,
++ * normalizer and input adapter are exercised exactly like real hardware.
++ */
++export class MockTransport implements LineTransport {
++  readonly kind = "mock" as const;
++
++  private timer: ReturnType<typeof setInterval> | null = null;
++  private startedAt = 0;
++  private demoActive = true;
++
++  constructor(private readonly handlers: TransportHandlers) {}
++
++  async connect() {
++    this.handlers.onStatus("connecting");
++    await new Promise((resolve) => setTimeout(resolve, 350)); // feel like a real handshake
++    this.startedAt = performance.now();
++    this.demoActive = true;
++
++    this.timer = setInterval(() => {
++      if (this.demoActive) this.emit(this.demoSample((performance.now() - this.startedAt) / 1000));
++    }, SEND_INTERVAL_MS);
++
++    window.__esp32Mock = {
++      send: (sample) => {
++        this.demoActive = false;
++        if (typeof sample === "string") this.handlers.onLine(sample);
++        else this.emit(sample);
++      },
++      demo: () => {
++        this.demoActive = true;
++      },
++    };
++
++    this.handlers.onStatus("connected");
++  }
++
++  async disconnect() {
++    if (this.timer) clearInterval(this.timer);
++    this.timer = null;
++    delete window.__esp32Mock;
++    this.handlers.onStatus("disconnected");
++  }
++
++  private emit(sample: MockSample) {
++    this.handlers.onLine(JSON.stringify(sample));
++  }
++
++  /** Gentle S-curves with the stick held forward; button (boost) pressed for ~1s every 8s. */
++  private demoSample(t: number): MockSample {
++    return {
++      x: Math.round(2048 + 1900 * Math.sin(t * 0.8)),
++      y: 100, // pushed (almost) fully forward
++      button: t % 8 > 7,
++    };
++  }
++}
+diff --git a/game/input/esp32/WebSerialTransport.ts b/game/input/esp32/WebSerialTransport.ts
+new file mode 100644
+index 0000000..6bac57a
+--- /dev/null
++++ b/game/input/esp32/WebSerialTransport.ts
+@@ -0,0 +1,139 @@
++import type { LineTransport, TransportHandlers } from "./LineTransport";
++
++/* Minimal Web Serial typings: TypeScript's lib.dom does not ship them, and we avoid an extra dependency. */
++interface SerialPortLike {
++  readable: ReadableStream<Uint8Array> | null;
++  open(options: { baudRate: number }): Promise<void>;
++  close(): Promise<void>;
++}
++interface SerialLike {
++  requestPort(): Promise<SerialPortLike>;
++  addEventListener(type: "disconnect", listener: (event: Event) => void): void;
++  removeEventListener(type: "disconnect", listener: (event: Event) => void): void;
++}
++
++const BAUD_RATE = 115200;
++/** Safety valve: if the device never sends a newline, do not buffer forever. */
++const MAX_LINE_LENGTH = 1024;
++
++function getSerial(): SerialLike | null {
++  if (typeof navigator === "undefined") return null;
++  return (navigator as unknown as { serial?: SerialLike }).serial ?? null;
++}
++
++export function isWebSerialSupported() {
++  return getSerial() !== null;
++}
++
++export class WebSerialTransport implements LineTransport {
++  readonly kind = "serial" as const;
++
++  private port: SerialPortLike | null = null;
++  private reader: ReadableStreamDefaultReader<string> | null = null;
++  private pipeDone: Promise<void> | null = null;
++  private userClosing = false;
++
++  constructor(private readonly handlers: TransportHandlers) {}
++
++  private readonly onPortDisconnect = (event: Event) => {
++    // Fired by the browser when the USB device is physically unplugged.
++    if (event.target === this.port) void this.teardown("ESP32 unplugged");
++  };
++
++  /** Must be called from a user gesture (button click): requestPort() shows the browser's port chooser. */
++  async connect() {
++    const serial = getSerial();
++    if (!serial) {
++      this.handlers.onStatus("disconnected", "Web Serial is not supported in this browser (use Chrome or Edge).");
++      return;
++    }
++
++    this.handlers.onStatus("connecting");
++    this.userClosing = false;
++
++    try {
++      const port = await serial.requestPort();
++      await port.open({ baudRate: BAUD_RATE });
++      if (!port.readable) throw new Error("Serial port is not readable");
++
++      this.port = port;
++      serial.addEventListener("disconnect", this.onPortDisconnect);
++
++      // bytes -> text. pipeTo() lets us cancel cleanly later.
++      const decoder = new TextDecoderStream();
++      this.pipeDone = port.readable.pipeTo(decoder.writable as unknown as WritableStream<Uint8Array>).catch(() => {});
++      this.reader = decoder.readable.getReader();
++
++      this.handlers.onStatus("connected");
++      void this.readLoop(this.reader);
++    } catch (error) {
++      await this.teardown(describeConnectError(error));
++    }
++  }
++
++  async disconnect() {
++    this.userClosing = true;
++    await this.teardown();
++  }
++
++  private async readLoop(reader: ReadableStreamDefaultReader<string>) {
++    let buffer = "";
++    let failure: string | undefined;
++
++    try {
++      for (;;) {
++        const { value, done } = await reader.read();
++        if (done) break;
++        buffer += value;
++
++        let newline = buffer.indexOf("\n");
++        while (newline !== -1) {
++          const line = buffer.slice(0, newline).replace(/\r$/, "");
++          buffer = buffer.slice(newline + 1);
++          if (line) this.handlers.onLine(line);
++          newline = buffer.indexOf("\n");
++        }
++        if (buffer.length > MAX_LINE_LENGTH) buffer = "";
++      }
++    } catch (error) {
++      failure = error instanceof Error ? error.message : "Serial read error";
++    }
++
++    // Loop ended on its own (device lost / read error) rather than via disconnect().
++    if (!this.userClosing && this.port) await this.teardown(failure ?? "Serial connection closed");
++  }
++
++  private async teardown(detail?: string) {
++    const port = this.port;
++    const reader = this.reader;
++    this.port = null;
++    this.reader = null;
++    getSerial()?.removeEventListener("disconnect", this.onPortDisconnect);
++
++    try {
++      await reader?.cancel();
++    } catch {
++      /* already closed */
++    }
++    await this.pipeDone;
++    this.pipeDone = null;
++    try {
++      await port?.close();
++    } catch {
++      /* already closed / unplugged */
++    }
++
++    this.handlers.onStatus("disconnected", detail);
++  }
++}
++
++function describeConnectError(error: unknown): string | undefined {
++  if (error instanceof DOMException) {
++    // User dismissed the port chooser: not an error worth showing.
++    if (error.name === "NotFoundError") return undefined;
++    if (error.name === "InvalidStateError" || error.name === "NetworkError") {
++      return "Could not open the port. Is it already in use (Arduino IDE / serial monitor)?";
++    }
++  }
++  return error instanceof Error ? error.message : "Could not connect to ESP32";
++}
+diff --git a/game/input/esp32/esp32Protocol.ts b/game/input/esp32/esp32Protocol.ts
+new file mode 100644
+index 0000000..2e2ceb5
+--- /dev/null
++++ b/game/input/esp32/esp32Protocol.ts
+@@ -0,0 +1,82 @@
++import { type ControllerControls, neutralControls } from "../ControllerInputSource";
++
++/**
++ * Wire format (one JSON object per line, newline-terminated):
++ *   {"x":2048,"y":2048,"button":false}
++ * x / y : raw 12-bit ADC values, 0..4095, ~2048 at rest
++ * button: boolean (0/1 also accepted); optional, defaults to false
++ */
++export type JoystickSample = { x: number; y: number; button: boolean };
++
++export type JoystickCalibration = {
++  /** ADC value at rest. */
++  center: number;
++  /** Highest ADC value (ESP32 is 12-bit by default). */
++  adcMax: number;
++  /** Fraction of full deflection (0..1) ignored around the center. */
++  deadZone: number;
++  /** Flip left/right if the stick is mounted the other way round. */
++  invertX: boolean;
++  /**
++   * Y axis maps to throttle/brake. By default a LOW raw y (stick pushed "up"/forward) is throttle
++   * and a HIGH raw y is brake. Flip if your module is wired the other way.
++   */
++  invertY: boolean;
++};
++
++export const DEFAULT_JOYSTICK_CALIBRATION: JoystickCalibration = {
++  center: 2048,
++  adcMax: 4095,
++  deadZone: 0.12,
++  invertX: false,
++  invertY: false,
++};
++
++/** Returns null for anything that is not a valid sample (boot logs, partial lines, junk). */
++export function parseControllerLine(line: string): JoystickSample | null {
++  const trimmed = line.trim();
++  // ESP32 prints boot/debug text on the same UART; ignore anything that is not a JSON object.
++  if (trimmed.length === 0 || trimmed[0] !== "{") return null;
++
++  let data: unknown;
++  try {
++    data = JSON.parse(trimmed);
++  } catch {
++    return null;
++  }
++  if (typeof data !== "object" || data === null) return null;
++
++  const { x, y, button } = data as Record<string, unknown>;
++  if (typeof x !== "number" || typeof y !== "number") return null;
++  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
++
++  return { x, y, button: button === true || button === 1 };
++}
++
++/** raw ADC -> -1..+1 with dead zone. The dead zone is rescaled so output ramps smoothly from 0 at its edge. */
++export function normalizeAxis(raw: number, calibration: JoystickCalibration): number {
++  const { center, adcMax, deadZone } = calibration;
++  const span = raw >= center ? adcMax - center : center;
++  const linear = Math.max(-1, Math.min(1, (raw - center) / span));
++  const magnitude = Math.abs(linear);
++  if (magnitude <= deadZone) return 0;
++  return Math.sign(linear) * ((magnitude - deadZone) / (1 - deadZone));
++}
++
++/** JoystickSample -> the same InputState the keyboard produces. */
++export function joystickToInputState(
++  sample: JoystickSample,
++  calibration: JoystickCalibration = DEFAULT_JOYSTICK_CALIBRATION,
++): ControllerControls {
++  const steering = normalizeAxis(sample.x, calibration) * (calibration.invertX ? -1 : 1);
++  // Raw y grows downward (like screen coordinates): negative = pushed forward = throttle.
++  const forward = -normalizeAxis(sample.y, calibration) * (calibration.invertY ? -1 : 1);
++
++  return {
++    ...neutralControls,
++    steering,
++    throttle: Math.max(0, forward),
++    brake: Math.max(0, -forward),
++    action1: sample.button,
++  };
++}
+diff --git a/game/input/useInput.ts b/game/input/useInput.ts
+index 29c0b63..0889813 100644
+--- a/game/input/useInput.ts
++++ b/game/input/useInput.ts
+@@ -1,11 +1,17 @@
+ "use client";
+ 
+ import { useEffect, useState } from "react";
++import { useControllerStore } from "@/lib/state/controllerStore";
++import { getInputSource } from "./controllerHub";
+ import { InputManager } from "./InputManager";
+-import { KeyboardInputSource } from "./KeyboardInputSource";
+ 
+ export function useInput(enabled: boolean) {
+-  const [manager] = useState(() => new InputManager(new KeyboardInputSource()));
++  const inputKind = useControllerStore((state) => state.inputKind);
++  const [manager] = useState(() => new InputManager(getInputSource(useControllerStore.getState().inputKind)));
++
++  useEffect(() => {
++    manager.setSource(getInputSource(inputKind));
++  }, [inputKind, manager]);
+ 
+   useEffect(() => {
+     if (!enabled) {
+@@ -18,4 +24,4 @@ export function useInput(enabled: boolean) {
+   }, [enabled, manager]);
+ 
+   return manager;
+-}
+\ No newline at end of file
++}
+diff --git a/lib/state/controllerStore.ts b/lib/state/controllerStore.ts
+new file mode 100644
+index 0000000..7fe94a8
+--- /dev/null
++++ b/lib/state/controllerStore.ts
+@@ -0,0 +1,28 @@
++import { create } from "zustand";
++
++export type InputKind = "keyboard" | "esp32";
++export type ControllerStatus = "disconnected" | "connecting" | "connected";
++export type ControllerLinkMode = "serial" | "mock";
++
++type ControllerStore = {
++  inputKind: InputKind;
++  status: ControllerStatus;
++  linkMode: ControllerLinkMode | null;
++  serialSupported: boolean;
++  /** Last connection problem / notice, shown in the controller panel. */
++  message: string | null;
++  setInputKind: (inputKind: InputKind) => void;
++  setConnection: (status: ControllerStatus, linkMode: ControllerLinkMode | null, message?: string | null) => void;
++  setSerialSupported: (supported: boolean) => void;
++};
++
++export const useControllerStore = create<ControllerStore>((set) => ({
++  inputKind: "keyboard",
++  status: "disconnected",
++  linkMode: null,
++  serialSupported: false,
++  message: null,
++  setInputKind: (inputKind) => set({ inputKind }),
++  setConnection: (status, linkMode, message = null) => set({ status, linkMode, message }),
++  setSerialSupported: (serialSupported) => set({ serialSupported }),
++}));
