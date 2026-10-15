@@ -1,0 +1,106 @@
+diff --git a/components/game/RaceScene.tsx b/components/game/RaceScene.tsx
+index e55b4f9..010cb92 100644
+--- a/components/game/RaceScene.tsx
++++ b/components/game/RaceScene.tsx
+@@ -195,6 +195,7 @@ function RacingCar({ input, active, resetToken }: { input: ReturnType<typeof use
+   const simulation = useRef<RacingSimulation>(createRacingSimulation());
+   const simulationAccumulator = useRef(0);
+   const hudAccumulator = useRef(0);
++  const collisionLatch = useRef(false);
+   const cameraTarget = useMemo(() => new Vector3(), []);
+   const cameraPosition = useMemo(() => new Vector3(), []);
+   const updateTelemetry = useGameStore((state) => state.updateTelemetry);
+@@ -205,6 +206,7 @@ function RacingCar({ input, active, resetToken }: { input: ReturnType<typeof use
+   useEffect(() => {
+     simulation.current = createRacingSimulation();
+     simulationAccumulator.current = 0;
++    collisionLatch.current = false;
+     const initial = simulation.current;
+     body.current?.setTranslation({ x: initial.x, y: 0.12, z: initial.z }, true);
+     body.current?.setRotation(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), initial.yaw), true);
+@@ -217,6 +219,7 @@ function RacingCar({ input, active, resetToken }: { input: ReturnType<typeof use
+       simulationAccumulator.current += Math.min(delta, 0.1);
+       while (simulationAccumulator.current >= fixedStep) {
+         const result = stepRacingSimulation(current, input.read(), fixedStep);
++        if (current.collided) collisionLatch.current = true;
+         if (result.lapCompleted) {
+           recordLap(result.lapTime);
+         }
+@@ -230,7 +233,8 @@ function RacingCar({ input, active, resetToken }: { input: ReturnType<typeof use
+       body.current?.setNextKinematicRotation(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), current.yaw));
+       hudAccumulator.current += delta;
+       if (hudAccumulator.current >= 0.08) {
+-        updateTelemetry(current.speed * 3.6, current.lap, current.elapsed, current.nitro, current.currentLapTime, current.lapProgress);
++        updateTelemetry(current.speed * 3.6, current.lap, current.elapsed, current.nitro, current.currentLapTime, current.lapProgress, collisionLatch.current);
++        collisionLatch.current = false;
+         hudAccumulator.current = 0;
+       }
+     }
+diff --git a/game/physics/racingPhysics.ts b/game/physics/racingPhysics.ts
+index bdd7ad3..6490fee 100644
+--- a/game/physics/racingPhysics.ts
++++ b/game/physics/racingPhysics.ts
+@@ -13,7 +13,10 @@ export type RacingSimulation = {
+   speed: number;
+   elapsed: number;
+   lap: number;
++  /** Progress within the current lap, 0..2π (for the HUD). */
+   lapProgress: number;
++  /** Signed distance travelled along the track since the start line, in radians. Driving backwards subtracts. */
++  progress: number;
+   previousAngle: number;
+   nitro: number;
+   collided: boolean;
+@@ -29,6 +32,7 @@ export function createRacingSimulation(): RacingSimulation {
+     elapsed: 0,
+     lap: 1,
+     lapProgress: 0,
++    progress: 0,
+     previousAngle: 0,
+     nitro: 100,
+     collided: false,
+@@ -66,14 +70,16 @@ export function stepRacingSimulation(simulation: RacingSimulation, controls: Con
+   if (angleDelta > Math.PI) angleDelta -= TAU;
+   if (angleDelta < -Math.PI) angleDelta += TAU;
+   let lapCompleted = false;
+-  if (angleDelta > 0 && simulation.speed > 1) {
+-    simulation.lapProgress += angleDelta;
+-    if (simulation.lapProgress >= TAU) {
+-      simulation.lapProgress -= TAU;
+-      simulation.lap += 1;
+-      lapCompleted = true;
+-    }
++  let completedLapTime = 0;
++  // Signed progress: forward adds, backward subtracts, so zig-zagging over the same stretch gains nothing.
++  if (simulation.speed > 1) simulation.progress += angleDelta;
++  if (simulation.progress >= simulation.lap * TAU) {
++    lapCompleted = true;
++    completedLapTime = simulation.currentLapTime;
++    simulation.currentLapTime = 0;
++    simulation.lap += 1;
+   }
++  simulation.lapProgress = Math.min(TAU, Math.max(0, simulation.progress - (simulation.lap - 1) * TAU));
+   simulation.previousAngle = angle;
+ 
+   const centerX = TRACK_RADIUS_X * Math.sin(angle);
+@@ -94,5 +100,5 @@ export function stepRacingSimulation(simulation: RacingSimulation, controls: Con
+     simulation.collided = true;
+   }
+ 
+-  return { finished: simulation.lap > RACE_LAPS, lapCompleted, lapTime: simulation.currentLapTime };
++  return { finished: simulation.lap > RACE_LAPS, lapCompleted, lapTime: completedLapTime };
+ }
+\ No newline at end of file
+diff --git a/lib/state/gameStore.ts b/lib/state/gameStore.ts
+index 3b1348a..d416c1d 100644
+--- a/lib/state/gameStore.ts
++++ b/lib/state/gameStore.ts
+@@ -36,7 +36,7 @@ export const useGameStore = create<GameStore>((set) => ({
+   returnToMenu: () => set((state) => ({ phase: "menu", ...resetTelemetry, resetToken: state.resetToken + 1 })),
+   restartRace: () => set((state) => ({ phase: "racing", ...resetTelemetry, resetToken: state.resetToken + 1 })),
+   finishRace: () => set({ phase: "finished", speed: 0 }),
+-  updateTelemetry: (speed, lap, elapsed, nitro, currentLapTime, lapProgress) => set({ speed, lap, elapsed, nitro, currentLapTime, lapProgress }),
++  updateTelemetry: (speed, lap, elapsed, nitro, currentLapTime, lapProgress, collided) => set({ speed, lap, elapsed, nitro, currentLapTime, lapProgress, collided }),
+   recordLap: (lapTime) => set((state) => ({
+     lapTimes: [...state.lapTimes, lapTime],
+     bestLapTime: state.bestLapTime === Infinity ? lapTime : Math.min(state.bestLapTime, lapTime),

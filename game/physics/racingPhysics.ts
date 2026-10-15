@@ -14,9 +14,11 @@ export type RacingSimulation = {
   elapsed: number;
   lap: number;
   lapProgress: number;
+  progress: number;
   previousAngle: number;
   nitro: number;
   collided: boolean;
+  wrongWay: boolean;
   currentLapTime: number;
 };
 
@@ -29,11 +31,24 @@ export function createRacingSimulation(): RacingSimulation {
     elapsed: 0,
     lap: 1,
     lapProgress: 0,
+    progress: 0,
     previousAngle: 0,
     nitro: 100,
     collided: false,
+    wrongWay: false,
     currentLapTime: 0,
   };
+}
+
+export function recoverRacingSimulation(simulation: RacingSimulation) {
+  const angle = (Math.atan2(simulation.x / TRACK_RADIUS_X, -simulation.z / TRACK_RADIUS_Z) + TAU) % TAU;
+  simulation.x = TRACK_RADIUS_X * Math.sin(angle);
+  simulation.z = -TRACK_RADIUS_Z * Math.cos(angle);
+  simulation.yaw = Math.atan2(TRACK_RADIUS_X * Math.cos(angle), TRACK_RADIUS_Z * Math.sin(angle));
+  simulation.speed = 0;
+  simulation.previousAngle = angle;
+  simulation.collided = true;
+  simulation.wrongWay = false;
 }
 
 export function stepRacingSimulation(simulation: RacingSimulation, controls: ControllerControls, delta: number) {
@@ -66,14 +81,16 @@ export function stepRacingSimulation(simulation: RacingSimulation, controls: Con
   if (angleDelta > Math.PI) angleDelta -= TAU;
   if (angleDelta < -Math.PI) angleDelta += TAU;
   let lapCompleted = false;
-  if (angleDelta > 0 && simulation.speed > 1) {
-    simulation.lapProgress += angleDelta;
-    if (simulation.lapProgress >= TAU) {
-      simulation.lapProgress -= TAU;
-      simulation.lap += 1;
-      lapCompleted = true;
-    }
+  let completedLapTime = 0;
+  if (simulation.speed > 1) simulation.progress += angleDelta;
+  simulation.wrongWay = simulation.speed > 4 && angleDelta < -0.0008;
+  if (simulation.progress >= simulation.lap * TAU) {
+    lapCompleted = true;
+    completedLapTime = simulation.currentLapTime;
+    simulation.currentLapTime = 0;
+    simulation.lap += 1;
   }
+  simulation.lapProgress = Math.min(TAU, Math.max(0, simulation.progress - (simulation.lap - 1) * TAU));
   simulation.previousAngle = angle;
 
   const centerX = TRACK_RADIUS_X * Math.sin(angle);
@@ -87,12 +104,24 @@ export function stepRacingSimulation(simulation: RacingSimulation, controls: Con
   const maxOffset = TRACK_HALF_WIDTH - 0.9;
 
   if (Math.abs(lateralOffset) > maxOffset) {
-    const correction = (Math.abs(lateralOffset) - maxOffset) * Math.sign(lateralOffset);
+    const side = Math.sign(lateralOffset);
+    const correction = (Math.abs(lateralOffset) - (maxOffset - 0.08)) * side;
     simulation.x -= normalX * correction;
     simulation.z -= normalZ * correction;
-    simulation.speed *= 0.58;
     simulation.collided = true;
+
+    const headingX = Math.sin(simulation.yaw);
+    const headingZ = Math.cos(simulation.yaw);
+    const outwardHeading = (headingX * normalX + headingZ * normalZ) * side;
+    if (outwardHeading > 0) {
+      const alongTrack = headingX * (tangentX / tangentLength) + headingZ * (tangentZ / tangentLength);
+      const direction = Math.sign(alongTrack) || 1;
+      const targetYaw = Math.atan2(tangentX * direction, tangentZ * direction);
+      const yawError = Math.atan2(Math.sin(targetYaw - simulation.yaw), Math.cos(targetYaw - simulation.yaw));
+      simulation.yaw += Math.max(-dt * 9, Math.min(dt * 9, yawError));
+      simulation.speed *= 0.94;
+    }
   }
 
-  return { finished: simulation.lap > RACE_LAPS, lapCompleted, lapTime: simulation.currentLapTime };
+  return { finished: simulation.lap > RACE_LAPS, lapCompleted, lapTime: completedLapTime };
 }

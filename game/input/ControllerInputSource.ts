@@ -4,6 +4,7 @@ export type ControllerControls = {
   brake: number;
   action1: boolean;
   action2: boolean;
+  reset?: boolean;
 };
 
 export interface ControllerInputSource {
@@ -19,4 +20,5 @@ export const neutralControls: ControllerControls = {
   brake: 0,
   action1: false,
   action2: false,
+  reset: false,
 };

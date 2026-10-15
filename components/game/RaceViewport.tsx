@@ -7,6 +7,11 @@ const RaceScene = dynamic(() => import("./RaceScene"), {
   loading: () => <div className="viewport-loading" aria-label="Loading race circuit" />,
 });
 
-export default function RaceViewport() {
-  return <RaceScene />;
+export default function RaceViewport(props: {
+  introActive: boolean;
+  introRunId: number;
+  motionEnabled: boolean;
+  onIntroComplete: () => void;
+}) {
+  return <RaceScene {...props} />;
 }

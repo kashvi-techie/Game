@@ -4,7 +4,7 @@ const LEFT_KEYS = new Set(["ArrowLeft", "KeyA"]);
 const RIGHT_KEYS = new Set(["ArrowRight", "KeyD"]);
 const THROTTLE_KEYS = new Set(["ArrowUp", "KeyW"]);
 const BRAKE_KEYS = new Set(["ArrowDown", "KeyS"]);
-const CONTROL_CODES = new Set([...LEFT_KEYS, ...RIGHT_KEYS, ...THROTTLE_KEYS, ...BRAKE_KEYS, "Space", "ShiftLeft", "ShiftRight"]);
+const CONTROL_CODES = new Set([...LEFT_KEYS, ...RIGHT_KEYS, ...THROTTLE_KEYS, ...BRAKE_KEYS, "Space", "ShiftLeft", "ShiftRight", "KeyR"]);
 
 export class KeyboardInputSource implements ControllerInputSource {
   readonly label = "KEYBOARD";
@@ -39,6 +39,7 @@ export class KeyboardInputSource implements ControllerInputSource {
       brake: Number(hasAny(BRAKE_KEYS)),
       action1: this.pressed.has("Space"),
       action2: this.pressed.has("ShiftLeft") || this.pressed.has("ShiftRight"),
+      reset: this.pressed.has("KeyR"),
     };
   }
 }
