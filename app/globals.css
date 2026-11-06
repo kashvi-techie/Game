@@ -233,6 +233,25 @@ button:focus-visible {
   box-shadow: inset 0 0 0 2px var(--orange), inset 0 0 70px rgba(241, 106, 71, .32);
 }
 
+.collision-flash-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+  box-shadow: inset 0 0 0 2px var(--orange), inset 0 0 70px rgba(241, 106, 71, .32);
+  animation: collision-pulse 0.28s ease-out forwards;
+}
+
+@keyframes collision-pulse {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 .topbar,
 .race-topbar {
   height: 82px;
@@ -573,6 +592,9 @@ kbd {
 
 .race-topbar {
   height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .hud-brand-button {
@@ -582,26 +604,91 @@ kbd {
   cursor: pointer;
 }
 
-.race-status {
-  margin-left: auto;
-  margin-right: 21px;
-  color: rgba(232, 229, 219, .82);
+.hud-top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.icon-button {
-  width: 39px;
-  height: 39px;
+.race-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(232, 229, 219, .82);
+  font: 9px var(--mono);
+}
+
+.hud-quick-btn {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(232, 229, 219, .43);
-  background: rgba(24, 29, 30, .18);
+  padding: 0;
+  border: 1px solid rgba(232, 229, 219, .28);
+  background: rgba(24, 29, 30, .45);
+  color: var(--paper);
   cursor: pointer;
-  transition: .2s;
+  transition: border-color .15s, color .15s;
 }
 
-.icon-button:hover {
-  color: var(--acid);
+.hud-quick-btn:hover {
   border-color: var(--acid);
+  color: var(--acid);
+}
+
+.hud-vehicle-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 112px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(213, 240, 93, .58);
+  background: rgba(24, 29, 30, .72);
+  color: var(--acid);
+  font: 500 9px var(--mono);
+  letter-spacing: .35px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, opacity .15s;
+}
+
+.hud-vehicle-switch:hover:not(:disabled) {
+  border-color: var(--acid);
+  background: rgba(213, 240, 93, .12);
+  color: #f1ffc0;
+}
+
+.hud-vehicle-switch:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.hud-pause-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(232, 229, 219, .32);
+  background: rgba(24, 29, 30, .6);
+  color: var(--paper);
+  font: 500 9px var(--mono);
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+
+.hud-pause-btn:hover {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.hud-pause-btn kbd {
+  min-width: 20px;
+  height: 16px;
+  font-size: 7px;
+  border-color: rgba(232, 229, 219, .35);
 }
 
 .race-top-readouts {
@@ -729,6 +816,37 @@ kbd {
   font-style: normal;
 }
 
+.gear-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 15px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.gear-badge.gear-d {
+  background: rgba(213, 240, 93, 0.2);
+  color: var(--acid);
+  border: 1px solid rgba(213, 240, 93, 0.45);
+}
+
+.gear-badge.gear-r {
+  background: rgba(241, 106, 71, 0.22);
+  color: #ff7656;
+  border: 1px solid rgba(241, 106, 71, 0.55);
+}
+
+.gear-badge.gear-n {
+  background: rgba(232, 229, 219, 0.1);
+  color: rgba(232, 229, 219, 0.7);
+  border: 1px solid rgba(232, 229, 219, 0.2);
+}
+
 .speed-value {
   margin: 1px 0 7px -3px;
   font: 700 80px/.9 var(--display);
@@ -755,63 +873,188 @@ kbd {
   transition: width .1s linear;
 }
 
-.controller-badge {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-width: 194px;
-  padding: 11px 13px;
-  border: 1px solid rgba(232, 229, 219, .38);
-  background: rgba(22, 27, 28, .3);
-  backdrop-filter: blur(7px);
-}
-
-.controller-icon {
-  color: var(--acid);
-}
-
-.controller-badge>span:nth-child(2) {
-  display: grid;
-  gap: 4px;
-}
-
-.controller-badge strong {
-  font: 9px var(--mono);
-}
-
-.controller-badge small {
-  color: rgba(232, 229, 219, .66);
-  font: 7px var(--mono);
-}
-
-.controller-check {
-  margin-left: auto;
-  color: var(--acid);
-  font-size: 15px;
-}
-
-.race-controls-hint {
+.camera-toast-pill {
   position: absolute;
-  right: 5.2vw;
-  bottom: 25px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  color: rgba(232, 229, 219, .75);
-  font: 7px var(--mono);
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--acid);
+  background: rgba(20, 25, 26, .92);
+  color: var(--paper);
+  font: 500 10px var(--mono);
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  animation: fade-in .15s ease-out both;
+  z-index: 10;
 }
 
-.race-controls-hint>span {
+.camera-toast-pill svg {
+  color: var(--acid);
+}
+
+.camera-toast-pill kbd {
+  background: rgba(213, 240, 93, .15);
+  border-color: var(--acid);
+  color: var(--acid);
+  font-size: 8px;
+}
+
+.bottom-camera-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(232, 229, 219, .2);
+  background: rgba(20, 25, 26, .35);
+  color: rgba(232, 229, 219, .65);
+  font: 8px var(--mono);
+}
+
+.bottom-camera-hint kbd {
+  min-width: 17px;
+  height: 16px;
+  font-size: 7px;
+  color: var(--acid);
+  border-color: rgba(213, 240, 93, .4);
+}
+
+.aircraft-interaction-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(232, 229, 219, .28);
+  background: rgba(20, 25, 26, .72);
+  color: rgba(232, 229, 219, .82);
+  font: 9px var(--mono);
+  white-space: nowrap;
+}
+
+.aircraft-interaction-hint kbd,
+.flight-controls-hint kbd {
+  color: var(--acid);
+  border-color: rgba(213, 240, 93, .4);
+}
+
+.aircraft-hint-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--acid);
+  box-shadow: 0 0 10px rgba(213, 240, 93, .7);
+}
+
+.flight-hud {
+  position: absolute;
+  left: 5.2vw;
+  right: 5.2vw;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.flight-hud-readouts {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  border: 1px solid rgba(232, 229, 219, .28);
+  background: rgba(20, 25, 26, .82);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+}
+
+.flight-readout {
+  position: relative;
+  min-width: 94px;
+  padding: 9px 12px 10px;
+  border-right: 1px solid rgba(232, 229, 219, .12);
+  display: flex;
+  flex-direction: column;
   gap: 5px;
 }
 
-.race-controls-hint kbd {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  font-size: 7px;
+.flight-readout:last-child {
+  border-right: 0;
+}
+
+.flight-readout span {
+  color: rgba(232, 229, 219, .58);
+  font: 8px var(--mono);
+  letter-spacing: .06em;
+}
+
+.flight-readout strong {
+  color: var(--paper);
+  font: 600 18px/.95 var(--display);
+}
+
+.flight-readout strong i {
+  color: var(--acid);
+  font: 8px var(--mono);
+  font-style: normal;
+}
+
+.flight-speed strong {
+  color: var(--acid);
+  font-size: 25px;
+}
+
+.flight-attitude {
+  min-width: 118px;
+}
+
+.flight-attitude strong {
+  font-size: 15px;
+}
+
+.flight-throttle-track {
+  width: 100%;
+  height: 2px;
+  background: rgba(232, 229, 219, .2);
+}
+
+.flight-throttle-track i {
+  display: block;
+  height: 100%;
+  background: var(--acid);
+}
+
+.flight-status {
+  padding: 5px 8px;
+  border-left: 2px solid var(--acid);
+  background: rgba(20, 25, 26, .62);
+  color: rgba(232, 229, 219, .86);
+  font: 8px var(--mono);
+}
+
+.flight-status-danger {
+  border-left-color: var(--orange);
+  color: #ff9a7f;
+}
+
+.flight-controls-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  color: rgba(232, 229, 219, .7);
+  font: 8px var(--mono);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .9);
+}
+
+.flight-controls-hint span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .modal-scrim {
@@ -819,29 +1062,133 @@ kbd {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(17, 22, 23, .53);
-  backdrop-filter: blur(3px);
+  background: rgba(17, 22, 23, .65);
+  backdrop-filter: blur(4px);
   animation: fade-in .2s ease both;
+  z-index: 20;
 }
 
 .pause-panel {
-  width: min(440px, calc(100vw - 40px));
-  padding: 34px 38px 31px;
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 30px 32px 28px;
   border: 1px solid rgba(232, 229, 219, .3);
-  background: rgba(24, 29, 30, .94);
-  box-shadow: 0 24px 90px rgba(0, 0, 0, .35);
+  background: rgba(22, 27, 28, .96);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, .45);
 }
 
 .pause-panel h2 {
-  margin: 18px 0;
-  font-size: 71px;
+  margin: 14px 0 16px;
+  font-size: 58px;
+  line-height: .9;
+}
+
+.pause-panel h2 span {
+  color: var(--acid);
 }
 
 .pause-panel p {
-  margin: 0 0 24px;
-  color: rgba(232, 229, 219, .7);
-  font-size: 12px;
-  line-height: 1.7;
+  margin: 0 0 20px;
+  color: rgba(232, 229, 219, .72);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.pause-section {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(232, 229, 219, .14);
+}
+
+.pause-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: var(--acid);
+  font: 500 9px var(--mono);
+  letter-spacing: 0.5px;
+}
+
+.pause-section-head small {
+  margin-left: auto;
+  color: rgba(232, 229, 219, .6);
+  font: 8px var(--mono);
+}
+
+.camera-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.camera-preset-btn {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid rgba(232, 229, 219, .25);
+  background: rgba(18, 22, 23, .55);
+  color: rgba(232, 229, 219, .75);
+  text-align: left;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.camera-preset-btn:hover {
+  border-color: rgba(213, 240, 93, .6);
+  color: var(--paper);
+}
+
+.camera-preset-btn.camera-preset-active {
+  border-color: var(--acid);
+  background: rgba(213, 240, 93, .12);
+  color: var(--acid);
+}
+
+.camera-preset-btn strong {
+  font: 700 11px var(--mono);
+}
+
+.camera-preset-btn small {
+  font: 7px var(--mono);
+  color: rgba(232, 229, 219, .55);
+}
+
+.camera-preset-active small {
+  color: rgba(213, 240, 93, .8);
+}
+
+.controls-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+  font: 8px var(--mono);
+  color: rgba(232, 229, 219, .8);
+}
+
+.controls-reference-grid>div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controls-reference-grid span {
+  margin-right: auto;
+  color: rgba(232, 229, 219, .6);
+}
+
+.pause-audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pause-audio-bar input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--acid);
+  cursor: pointer;
 }
 
 .modal-primary {
@@ -852,7 +1199,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-top: 19px;
+  margin-top: 14px;
   padding: 0;
   border: 0;
   background: none;
@@ -911,6 +1258,38 @@ kbd {
   .race-topbar {
     height: 64px;
     padding: 0 22px;
+  }
+
+  .hud-top-right {
+    gap: 6px;
+  }
+
+  .race-status {
+    display: none;
+  }
+
+  .hud-vehicle-switch {
+    min-width: 76px;
+    height: 30px;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 7px;
+  }
+
+  .hud-quick-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .hud-pause-btn {
+    height: 30px;
+    gap: 5px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .hud-pause-btn kbd {
+    display: none;
   }
 
   .menu-top-meta {
@@ -1028,6 +1407,45 @@ kbd {
     left: 22px;
   }
 
+  .aircraft-interaction-hint {
+    bottom: 14px;
+    max-width: calc(100vw - 28px);
+    font-size: 7px;
+  }
+
+  .flight-hud {
+    right: 12px;
+    bottom: 14px;
+    left: 12px;
+    gap: 5px;
+  }
+
+  .flight-hud-readouts {
+    flex-wrap: wrap;
+  }
+
+  .flight-readout {
+    min-width: 74px;
+    padding: 6px 8px;
+  }
+
+  .flight-readout span {
+    font-size: 7px;
+  }
+
+  .flight-readout strong {
+    font-size: 15px;
+  }
+
+  .flight-speed strong {
+    font-size: 20px;
+  }
+
+  .flight-controls-hint {
+    max-width: 100%;
+    font-size: 7px;
+  }
+
   .speed-readout {
     width: 160px;
   }
@@ -1067,16 +1485,17 @@ kbd {
     font-size: 6px;
   }
 
-  .track-label {
-    display: none;
-  }
-
   .pause-panel {
-    padding: 28px 25px;
+    padding: 24px 20px;
   }
 
   .pause-panel h2 {
-    font-size: 52px;
+    font-size: 44px;
+  }
+
+  .camera-preset-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 
@@ -1110,6 +1529,7 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

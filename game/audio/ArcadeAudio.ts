@@ -6,7 +6,7 @@ type VehicleAudio = ControllerControls & {
   enabled: boolean;
 };
 
-export type AudioCue = "countdown" | "start" | "lap" | "finish" | "impact";
+export type AudioCue = "countdown" | "start" | "lap" | "finish" | "impact" | "horn" | "siren";
 
 export class ArcadeAudio {
   private context: AudioContext | null = null;
@@ -28,6 +28,8 @@ export class ArcadeAudio {
   private muted = false;
   private graphCreated = false;
   private lastImpactTime = -Infinity;
+  private lastHornTime = -Infinity;
+  private lastSirenTime = -Infinity;
   private ambienceActive: boolean | null = null;
 
   async resumeFromGesture() {
@@ -86,6 +88,45 @@ export class ArcadeAudio {
     if (cue === "impact") {
       if (now - this.lastImpactTime < 0.24) return;
       this.lastImpactTime = now;
+    }
+
+    if (cue === "horn") {
+      if (now - this.lastHornTime < 0.22) return;
+      this.lastHornTime = now;
+      const freqs = [415, 510];
+      freqs.forEach((freq) => {
+        const osc = this.context!.createOscillator();
+        const gain = this.context!.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+        osc.connect(gain);
+        gain.connect(this.master!);
+        osc.start(now);
+        osc.stop(now + 0.28);
+      });
+      return;
+    }
+
+    if (cue === "siren") {
+      if (now - this.lastSirenTime < 0.38) return;
+      this.lastSirenTime = now;
+      const osc = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(720, now);
+      osc.frequency.linearRampToValueAtTime(1180, now + 0.18);
+      osc.frequency.linearRampToValueAtTime(720, now + 0.36);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.11, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(this.master!);
+      osc.start(now);
+      osc.stop(now + 0.4);
+      return;
     }
 
     const notes = cue === "countdown" ? [660] : cue === "start" ? [880, 1175] :

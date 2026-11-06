@@ -62,9 +62,10 @@ export function stepRacingSimulation(simulation: RacingSimulation, controls: Con
   simulation.speed += controls.throttle * (boosting ? 23 : 15) * dt;
   simulation.speed -= controls.brake * 26 * dt;
   simulation.speed -= (controls.throttle > 0 ? 1.1 : 3.2) * dt;
+  if (simulation.speed < 0.1 && controls.throttle === 0) simulation.speed = 0;
   simulation.speed = Math.max(0, Math.min(maxSpeed, simulation.speed));
 
-  const steeringAuthority = Math.min(1, simulation.speed / 5);
+  const steeringAuthority = Math.max(0.4, Math.min(1, simulation.speed / 4.2));
   const handbrakeFactor = controls.action2 ? 1.45 : 1;
   simulation.yaw -= controls.steering * 1.9 * steeringAuthority * handbrakeFactor * dt;
   simulation.x += Math.sin(simulation.yaw) * simulation.speed * dt;
