@@ -599,6 +599,14 @@ export const PEDESTRIAN_NPCS: PedestrianNPC[] = [
   // East Boulevard & Tennis Players
   { id: "npc-9", name: "Tennis Player Alex", routeId: "route-east-sidewalk", initialProgress: 0.2, speed: 1.8, shirtColor: "#f43f5e", pantsColor: "#f8fafc", hairColor: "#172554" },
   { id: "npc-10", name: "Club Member Nina", routeId: "route-east-sidewalk", initialProgress: 0.6, speed: 1.3, shirtColor: "#6366f1", pantsColor: "#1e1b4b", hairColor: "#3f3f46" },
+
+  // Additional residents keep the park, market, and sidewalks lively.
+  { id: "npc-11", name: "Jogger Asha", routeId: "route-park-loop", initialProgress: 0.52, speed: 2.1, shirtColor: "#f97316", pantsColor: "#334155", hairColor: "#292524" },
+  { id: "npc-12", name: "Walker Noah", routeId: "route-park-loop", initialProgress: 0.88, speed: 1.25, shirtColor: "#0ea5e9", pantsColor: "#1e293b", hairColor: "#78350f" },
+  { id: "npc-13", name: "Shopper Grace", routeId: "route-market-plaza", initialProgress: 0.3, speed: 1.15, shirtColor: "#a855f7", pantsColor: "#475569", hairColor: "#451a03" },
+  { id: "npc-14", name: "Shopper Omar", routeId: "route-market-plaza", initialProgress: 0.72, speed: 1.35, shirtColor: "#14b8a6", pantsColor: "#1f2937", hairColor: "#18181b" },
+  { id: "npc-15", name: "Runner Chloe", routeId: "route-west-sidewalk", initialProgress: 0.42, speed: 2.2, shirtColor: "#e11d48", pantsColor: "#334155", hairColor: "#713f12" },
+  { id: "npc-16", name: "Resident Eli", routeId: "route-east-sidewalk", initialProgress: 0.82, speed: 1.4, shirtColor: "#eab308", pantsColor: "#334155", hairColor: "#1c1917" },
 ];
 
 export type LivingActivity = "walking" | "sitting" | "talking" | "playing" | "guarding";

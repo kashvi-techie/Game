@@ -7,6 +7,7 @@ import {
   SOCIETY_WORLD_BOUNDS,
   type SocietyRoad,
 } from "../world/societyLayout";
+import { crashSocietyTrafficVehicle, SOCIETY_TRAFFIC_OBSTACLES } from "../world/societyTraffic";
 
 // -------------------------------------------------------------
 // SPATIAL HASH GRID FOR ULTRA-FAST O(1) OBSTACLE COLLISION
@@ -97,6 +98,18 @@ function getNearbyObstacles(
     }
   }
   for (const obstacle of additionalObstacles) {
+    if (
+      x + searchRadius >= obstacle.minX
+      && x - searchRadius <= obstacle.maxX
+      && z + searchRadius >= obstacle.minZ
+      && z - searchRadius <= obstacle.maxZ
+      && !seen.has(obstacle.id)
+    ) {
+      seen.add(obstacle.id);
+      result.push(obstacle);
+    }
+  }
+  for (const obstacle of SOCIETY_TRAFFIC_OBSTACLES) {
     if (
       x + searchRadius >= obstacle.minX
       && x - searchRadius <= obstacle.maxX
@@ -303,6 +316,10 @@ export function stepOpenWorldSimulation(
           const oLen = Math.hypot(ox, oz) || 1;
           nx = ox / oLen;
           nz = oz / oLen;
+        }
+
+        if (obs.id.startsWith("traffic-")) {
+          crashSocietyTrafficVehicle(obs.id, -nx, -nz, Math.abs(simulation.speed));
         }
 
         // Push out vehicle position smoothly to clear the overlap

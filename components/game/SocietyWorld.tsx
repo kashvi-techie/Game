@@ -21,6 +21,7 @@ import {
   ShapeGeometry,
 } from "three";
 import { arcadeAudio } from "@/game/audio/ArcadeAudio";
+import { advanceSocietyTraffic, SOCIETY_TRAFFIC_VEHICLES } from "@/game/world/societyTraffic";
 import {
   CURB_WIDTH,
   MAIN_AVENUE_WIDTH,
@@ -1399,8 +1400,50 @@ function ParkingLots() {
 const CAR_CHASSIS_GEO = new BoxGeometry(1.72, 0.52, 4.1);
 const CAR_CABIN_GEO = new BoxGeometry(1.48, 0.46, 2.3);
 const CAR_WHEEL_GEO = new CylinderGeometry(0.3, 0.3, 0.24, 12);
+const TRAFFIC_LIGHT_GEO = new BoxGeometry(0.56, 0.12, 0.06);
 const CAR_CABIN_MAT = new MeshStandardMaterial({ color: "#1c2324", roughness: 0.2, metalness: 0.7 });
 const CAR_WHEEL_MAT = new MeshStandardMaterial({ color: "#181c1d", roughness: 0.9 });
+const TRAFFIC_HEADLIGHT_MAT = new MeshBasicMaterial({ color: "#fff4cb" });
+const TRAFFIC_TAILLIGHT_MAT = new MeshBasicMaterial({ color: "#d93333" });
+
+function AmbientTrafficManager() {
+  const groupsRef = useRef(new Map<string, Group>());
+
+  useFrame((_, delta) => {
+    advanceSocietyTraffic(delta);
+    SOCIETY_TRAFFIC_VEHICLES.forEach((vehicle) => {
+      const group = groupsRef.current.get(vehicle.id);
+      if (!group) return;
+      group.position.set(vehicle.x, 0, vehicle.z);
+      group.rotation.set(0, vehicle.yaw, vehicle.roll);
+    });
+  });
+
+  return (
+    <group>
+      {SOCIETY_TRAFFIC_VEHICLES.map((vehicle) => (
+        <group
+          key={vehicle.id}
+          ref={(group) => {
+            if (group) groupsRef.current.set(vehicle.id, group);
+            else groupsRef.current.delete(vehicle.id);
+          }}
+          position={[vehicle.x, 0, vehicle.z]}
+        >
+          <mesh position={[0, 0.42, 0]} geometry={CAR_CHASSIS_GEO} castShadow receiveShadow>
+            <meshStandardMaterial color={vehicle.color} roughness={0.38} metalness={0.48} />
+          </mesh>
+          <mesh position={[0, 0.88, -0.22]} geometry={CAR_CABIN_GEO} material={CAR_CABIN_MAT} castShadow />
+          {[-0.82, 0.82].flatMap((wheelX) => [-1.25, 1.25].map((wheelZ) => (
+            <mesh key={`${vehicle.id}-wheel-${wheelX}-${wheelZ}`} position={[wheelX, 0.28, wheelZ]} rotation={[0, 0, Math.PI / 2]} geometry={CAR_WHEEL_GEO} material={CAR_WHEEL_MAT} />
+          )))}
+          <mesh position={[0, 0.5, 2.07]} geometry={TRAFFIC_LIGHT_GEO} material={TRAFFIC_HEADLIGHT_MAT} />
+          <mesh position={[0, 0.5, -2.07]} geometry={TRAFFIC_LIGHT_GEO} material={TRAFFIC_TAILLIGHT_MAT} />
+        </group>
+      ))}
+    </group>
+  );
+}
 
 function ParkedVehicles() {
   return (
@@ -2393,6 +2436,7 @@ export default function SocietyWorld({
       <SwimmingPool />
       <ParkingLots />
       <ParkedVehicles />
+      <AmbientTrafficManager />
       <Streetlights />
       <Trees />
 
