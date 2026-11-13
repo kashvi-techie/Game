@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, CarFront, Flag, Gauge, Pause, Plane, Play, RotateCcw
 import RaceViewport from "@/components/game/RaceViewport";
 import { arcadeAudio } from "@/game/audio/ArcadeAudio";
 import { RACE_LAPS } from "@/game/physics/racingPhysics";
+import type { GraphicsQuality } from "@/game/rendering/graphicsQuality";
 import { useGameStore, type CameraPreset, type WorldMode } from "@/lib/state/gameStore";
 
 function formatTime(seconds: number) {
@@ -264,8 +265,10 @@ function PauseScreen({ onResume, onRestart, onMenu, finished, exploring }: {
   exploring: boolean;
 }) {
   const cameraPreset = useGameStore((state) => state.cameraPreset);
+  const graphicsQuality = useGameStore((state) => state.graphicsQuality);
   const aircraftMode = useGameStore((state) => state.aircraftMode);
   const setCameraPreset = useGameStore((state) => state.setCameraPreset);
+  const setGraphicsQuality = useGameStore((state) => state.setGraphicsQuality);
   const [volume, setVolume] = useState(0.45);
   const [muted, setMuted] = useState(false);
 
@@ -317,6 +320,28 @@ function PauseScreen({ onResume, onRestart, onMenu, finished, exploring }: {
               >
                 <strong>{preset.toUpperCase()}</strong>
                 <small>{preset === "close" ? "TIGHT FOLLOW" : preset === "standard" ? "BALANCED CHASE" : "WIDE PANORAMA"}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="pause-section">
+          <div className="pause-section-head">
+            <Gauge size={13} />
+            <span>GRAPHICS QUALITY</span>
+            <small>LOWER FOR MORE PERFORMANCE</small>
+          </div>
+          <div className="quality-preset-grid" role="group" aria-label="Graphics quality">
+            {(["low", "medium", "high", "ultra"] as const).map((quality: GraphicsQuality) => (
+              <button
+                key={quality}
+                type="button"
+                className={`camera-preset-btn ${graphicsQuality === quality ? "camera-preset-active" : ""}`}
+                aria-pressed={graphicsQuality === quality}
+                onClick={() => setGraphicsQuality(quality)}
+              >
+                <strong>{quality.toUpperCase()}</strong>
+                <small>{quality === "low" ? "LIGHTEST" : quality === "medium" ? "BALANCED" : quality === "high" ? "DETAILED" : "MAXIMUM"}</small>
               </button>
             ))}
           </div>

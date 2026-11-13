@@ -1,10 +1,10 @@
 import type { ControllerControls } from "../input/ControllerInputSource";
 import { createRacingSimulation, type RacingSimulation } from "./racingPhysics";
 import {
-  SOCIETY_LIMIT,
   SOCIETY_OBSTACLES,
   SOCIETY_ROADS,
   SOCIETY_START,
+  SOCIETY_WORLD_BOUNDS,
   type SocietyRoad,
 } from "../world/societyLayout";
 
@@ -12,8 +12,10 @@ import {
 // SPATIAL HASH GRID FOR ULTRA-FAST O(1) OBSTACLE COLLISION
 // -------------------------------------------------------------
 const GRID_CELL_SIZE = 24;
-const GRID_OFFSET = SOCIETY_LIMIT;
-const GRID_DIM = Math.ceil((GRID_OFFSET * 2) / GRID_CELL_SIZE);
+const GRID_OFFSET_X = -SOCIETY_WORLD_BOUNDS.minX;
+const GRID_OFFSET_Z = -SOCIETY_WORLD_BOUNDS.minZ;
+const GRID_DIM_X = Math.ceil((SOCIETY_WORLD_BOUNDS.maxX - SOCIETY_WORLD_BOUNDS.minX) / GRID_CELL_SIZE);
+const GRID_DIM_Z = Math.ceil((SOCIETY_WORLD_BOUNDS.maxZ - SOCIETY_WORLD_BOUNDS.minZ) / GRID_CELL_SIZE);
 
 type ObstacleBox = {
   id: string;
@@ -36,23 +38,31 @@ const obstacleBoxes: ObstacleBox[] = SOCIETY_OBSTACLES.map((obs) => ({
 }));
 
 // Build spatial grid buckets
-const spatialGrid: ObstacleBox[][] = Array.from({ length: GRID_DIM * GRID_DIM }, () => []);
+// Sparse buckets avoid allocating a mostly empty grid after the bounds grow.
+const spatialGrid = new Map<number, ObstacleBox[]>();
 
 function getCellIndex(cx: number, cz: number): number {
-  if (cx < 0 || cx >= GRID_DIM || cz < 0 || cz >= GRID_DIM) return -1;
-  return cz * GRID_DIM + cx;
+  if (cx < 0 || cx >= GRID_DIM_X || cz < 0 || cz >= GRID_DIM_Z) return -1;
+  return cz * GRID_DIM_X + cx;
 }
 
 obstacleBoxes.forEach((box) => {
-  const minCellX = Math.max(0, Math.floor((box.minX + GRID_OFFSET) / GRID_CELL_SIZE));
-  const maxCellX = Math.min(GRID_DIM - 1, Math.floor((box.maxX + GRID_OFFSET) / GRID_CELL_SIZE));
-  const minCellZ = Math.max(0, Math.floor((box.minZ + GRID_OFFSET) / GRID_CELL_SIZE));
-  const maxCellZ = Math.min(GRID_DIM - 1, Math.floor((box.maxZ + GRID_OFFSET) / GRID_CELL_SIZE));
+  const minCellX = Math.max(0, Math.floor((box.minX + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const maxCellX = Math.min(GRID_DIM_X - 1, Math.floor((box.maxX + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const minCellZ = Math.max(0, Math.floor((box.minZ + GRID_OFFSET_Z) / GRID_CELL_SIZE));
+  const maxCellZ = Math.min(GRID_DIM_Z - 1, Math.floor((box.maxZ + GRID_OFFSET_Z) / GRID_CELL_SIZE));
 
   for (let cz = minCellZ; cz <= maxCellZ; cz += 1) {
     for (let cx = minCellX; cx <= maxCellX; cx += 1) {
       const idx = getCellIndex(cx, cz);
-      if (idx >= 0) spatialGrid[idx].push(box);
+      if (idx >= 0) {
+        let cell = spatialGrid.get(idx);
+        if (!cell) {
+          cell = [];
+          spatialGrid.set(idx, cell);
+        }
+        cell.push(box);
+      }
     }
   }
 });
@@ -63,10 +73,10 @@ function getNearbyObstacles(
   searchRadius = 4.5,
   additionalObstacles: readonly ObstacleBox[] = [],
 ): ObstacleBox[] {
-  const minCellX = Math.max(0, Math.floor((x - searchRadius + GRID_OFFSET) / GRID_CELL_SIZE));
-  const maxCellX = Math.min(GRID_DIM - 1, Math.floor((x + searchRadius + GRID_OFFSET) / GRID_CELL_SIZE));
-  const minCellZ = Math.max(0, Math.floor((z - searchRadius + GRID_OFFSET) / GRID_CELL_SIZE));
-  const maxCellZ = Math.min(GRID_DIM - 1, Math.floor((z + searchRadius + GRID_OFFSET) / GRID_CELL_SIZE));
+  const minCellX = Math.max(0, Math.floor((x - searchRadius + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const maxCellX = Math.min(GRID_DIM_X - 1, Math.floor((x + searchRadius + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const minCellZ = Math.max(0, Math.floor((z - searchRadius + GRID_OFFSET_Z) / GRID_CELL_SIZE));
+  const maxCellZ = Math.min(GRID_DIM_Z - 1, Math.floor((z + searchRadius + GRID_OFFSET_Z) / GRID_CELL_SIZE));
 
   const result: ObstacleBox[] = [];
   const seen = new Set<string>();
@@ -75,7 +85,8 @@ function getNearbyObstacles(
     for (let cx = minCellX; cx <= maxCellX; cx += 1) {
       const idx = getCellIndex(cx, cz);
       if (idx < 0) continue;
-      const cell = spatialGrid[idx];
+      const cell = spatialGrid.get(idx);
+      if (!cell) continue;
       for (let i = 0; i < cell.length; i += 1) {
         const obs = cell[i];
         if (!seen.has(obs.id)) {
@@ -241,14 +252,17 @@ export function stepOpenWorldSimulation(
   let nextZ = simulation.z + forwardZ * moveDist;
 
   // Boundary clamp
-  const bound = SOCIETY_LIMIT - 1.2;
-  if (Math.abs(nextX) > bound) {
-    nextX = Math.sign(nextX) * bound;
+  const minX = SOCIETY_WORLD_BOUNDS.minX + 1.2;
+  const maxX = SOCIETY_WORLD_BOUNDS.maxX - 1.2;
+  const minZ = SOCIETY_WORLD_BOUNDS.minZ + 1.2;
+  const maxZ = SOCIETY_WORLD_BOUNDS.maxZ - 1.2;
+  if (nextX < minX || nextX > maxX) {
+    nextX = Math.max(minX, Math.min(maxX, nextX));
     simulation.collided = true;
     simulation.speed *= 0.5;
   }
-  if (Math.abs(nextZ) > bound) {
-    nextZ = Math.sign(nextZ) * bound;
+  if (nextZ < minZ || nextZ > maxZ) {
+    nextZ = Math.max(minZ, Math.min(maxZ, nextZ));
     simulation.collided = true;
     simulation.speed *= 0.5;
   }
@@ -329,18 +343,36 @@ export function stepOpenWorldSimulation(
 // -------------------------------------------------------------
 export function isOpenWorldCameraClear(x: number, z: number) {
   const clearance = 0.45;
-  if (Math.abs(x) > SOCIETY_LIMIT || Math.abs(z) > SOCIETY_LIMIT) return false;
+  if (
+    x < SOCIETY_WORLD_BOUNDS.minX || x > SOCIETY_WORLD_BOUNDS.maxX
+    || z < SOCIETY_WORLD_BOUNDS.minZ || z > SOCIETY_WORLD_BOUNDS.maxZ
+  ) return false;
 
-  const nearby = getNearbyObstacles(x, z, clearance + 1.5);
-  for (let i = 0; i < nearby.length; i += 1) {
-    const obs = nearby[i];
-    if (
-      x >= obs.minX - clearance
-      && x <= obs.maxX + clearance
-      && z >= obs.minZ - clearance
-      && z <= obs.maxZ + clearance
-    ) {
-      return false;
+  // This check runs several times per rendered camera frame. Walk the nearby
+  // grid buckets directly so it does not allocate a result array or Set.
+  const searchRadius = clearance + 1.5;
+  const minCellX = Math.max(0, Math.floor((x - searchRadius + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const maxCellX = Math.min(GRID_DIM_X - 1, Math.floor((x + searchRadius + GRID_OFFSET_X) / GRID_CELL_SIZE));
+  const minCellZ = Math.max(0, Math.floor((z - searchRadius + GRID_OFFSET_Z) / GRID_CELL_SIZE));
+  const maxCellZ = Math.min(GRID_DIM_Z - 1, Math.floor((z + searchRadius + GRID_OFFSET_Z) / GRID_CELL_SIZE));
+
+  for (let cz = minCellZ; cz <= maxCellZ; cz += 1) {
+    for (let cx = minCellX; cx <= maxCellX; cx += 1) {
+      const idx = getCellIndex(cx, cz);
+      if (idx < 0) continue;
+      const cell = spatialGrid.get(idx);
+      if (!cell) continue;
+      for (let i = 0; i < cell.length; i += 1) {
+        const obs = cell[i];
+        if (
+          x >= obs.minX - clearance
+          && x <= obs.maxX + clearance
+          && z >= obs.minZ - clearance
+          && z <= obs.maxZ + clearance
+        ) {
+          return false;
+        }
+      }
     }
   }
   return true;

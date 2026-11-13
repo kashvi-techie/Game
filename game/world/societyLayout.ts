@@ -10,6 +10,62 @@ export type SocietyRoad = {
   axis: RoadAxis;
 };
 
+export type SocietyRoadClosure = {
+  id: string;
+  roadId: string;
+  x: number;
+  z: number;
+  roadAxis: RoadAxis;
+  roadWidth: number;
+  facingYaw: number;
+};
+
+export type SocietyWorldBounds = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+export type SocietyDistrictId =
+  | "cedar-grove"
+  | "downtown"
+  | "west-residential"
+  | "industrial"
+  | "mountains"
+  | "beaches"
+  | "port"
+  | "airport";
+
+export type SocietyDistrict = {
+  id: SocietyDistrictId;
+  name: string;
+  bounds: SocietyWorldBounds;
+  character: "neighborhood" | "urban" | "industrial" | "natural" | "coastal" | "aviation";
+};
+
+export type SocietyRoadConnection = {
+  id: string;
+  x: number;
+  z: number;
+  roadIds: string[];
+  districtId: SocietyDistrictId;
+};
+
+export type SocietyLandmark = {
+  id: string;
+  name: string;
+  districtId: SocietyDistrictId;
+  kind: "tower" | "house" | "warehouse" | "terminal" | "hangar" | "mountain" | "runway" | "beach" | "harbor-water" | "port-crane";
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  color: string;
+  collidable?: boolean;
+};
+
 export type SocietyIntersection = {
   id: string;
   x: number;
@@ -110,7 +166,31 @@ export type PedestrianNPC = {
 // -------------------------------------------------------------
 // GLOBAL DIMENSIONS & CONSTANTS
 // -------------------------------------------------------------
-export const SOCIETY_LIMIT = 230;
+export const SOCIETY_WORLD_BOUNDS: SocietyWorldBounds = {
+  minX: -1536,
+  maxX: 1536,
+  minZ: -1536,
+  maxZ: 1536,
+};
+
+// Kept as a compatibility alias for existing systems which use a symmetric bound.
+export const SOCIETY_LIMIT = Math.max(
+  Math.abs(SOCIETY_WORLD_BOUNDS.minX),
+  Math.abs(SOCIETY_WORLD_BOUNDS.maxX),
+  Math.abs(SOCIETY_WORLD_BOUNDS.minZ),
+  Math.abs(SOCIETY_WORLD_BOUNDS.maxZ),
+);
+
+export const SOCIETY_DISTRICTS: SocietyDistrict[] = [
+  { id: "cedar-grove", name: "Cedar Grove", bounds: { minX: -150, maxX: 150, minZ: -150, maxZ: 150 }, character: "neighborhood" },
+  { id: "downtown", name: "Downtown", bounds: { minX: -450, maxX: 350, minZ: 250, maxZ: 850 }, character: "urban" },
+  { id: "west-residential", name: "West Residential", bounds: { minX: -1150, maxX: -250, minZ: -350, maxZ: 600 }, character: "neighborhood" },
+  { id: "industrial", name: "Industrial District", bounds: { minX: 350, maxX: 850, minZ: 700, maxZ: 1200 }, character: "industrial" },
+  { id: "mountains", name: "Northwest Range", bounds: { minX: -1350, maxX: -250, minZ: -1430, maxZ: -700 }, character: "natural" },
+  { id: "beaches", name: "East Coast Beaches", bounds: { minX: 1050, maxX: 1450, minZ: -250, maxZ: 650 }, character: "coastal" },
+  { id: "port", name: "Harbor Port", bounds: { minX: 850, maxX: 1450, minZ: 700, maxZ: 1320 }, character: "industrial" },
+  { id: "airport", name: "Coastal Airport", bounds: { minX: 250, maxX: 1250, minZ: -1200, maxZ: -450 }, character: "aviation" },
+];
 
 export const MAIN_AVENUE_WIDTH = 14;      // Central Spine
 export const SECONDARY_ROAD_WIDTH = 12;   // All cross streets & side avenues
@@ -142,6 +222,64 @@ export const SOCIETY_ROADS: SocietyRoad[] = [
   { id: "central-cross-west", name: "CENTRAL STREET W", axis: "x", x: -62, z: 0, width: SECONDARY_ROAD_WIDTH, length: 112 },
   { id: "central-cross-east", name: "CENTRAL STREET E", axis: "x", x: 62, z: 0, width: SECONDARY_ROAD_WIDTH, length: 112 },
   { id: "south-cross-street", name: "SOUTH CROSS STREET", axis: "x", x: 0, z: 58, width: SECONDARY_ROAD_WIDTH, length: 236 },
+
+  // Expansion roads: Cedar Grove stays unchanged; these extend from its north
+  // entrance and southern avenue into the first neighboring districts.
+  { id: "north-city-approach", name: "NORTH CITY APPROACH", axis: "z", x: 0, z: -267, width: 18, length: 266 },
+  { id: "west-residential-link", name: "WEST RESIDENTIAL LINK", axis: "x", x: -450, z: -400, width: 18, length: 900 },
+  { id: "west-residential-avenue", name: "WEST RESIDENTIAL AVENUE", axis: "z", x: -900, z: 50, width: 16, length: 900 },
+  { id: "airport-east-connector", name: "AIRPORT PARKWAY", axis: "x", x: 420, z: -400, width: 20, length: 840 },
+  { id: "airport-north-approach", name: "AIRPORT NORTH APPROACH", axis: "z", x: 840, z: -650, width: 18, length: 500 },
+  { id: "airport-terminal-access", name: "AIRPORT TERMINAL ACCESS", axis: "x", x: 900, z: -580, width: 12, length: 120 },
+  { id: "airport-runway-service", name: "AIRPORT RUNWAY SERVICE", axis: "x", x: 960, z: -900, width: 12, length: 240 },
+  { id: "central-downtown-extension", name: "CENTRAL AVENUE SOUTH", axis: "z", x: 0, z: 389, width: 18, length: 542 },
+  { id: "west-downtown-connector", name: "WEST DOWNTOWN CONNECTOR", axis: "x", x: -450, z: 400, width: 14, length: 900 },
+  { id: "harbor-freight-east", name: "HARBOR FREIGHT ROAD", axis: "x", x: 550, z: 660, width: 20, length: 1100 },
+  { id: "industrial-collector", name: "INDUSTRIAL COLLECTOR", axis: "z", x: 500, z: 805, width: 16, length: 290 },
+  { id: "industry-port-connector", name: "PORT SERVICE ROAD", axis: "x", x: 800, z: 950, width: 16, length: 600 },
+  { id: "port-access-road", name: "PORT ACCESS ROAD", axis: "z", x: 1100, z: 960, width: 16, length: 600 },
+  { id: "coastal-avenue", name: "EAST COAST ROAD", axis: "z", x: 1200, z: 200, width: 14, length: 1000 },
+  { id: "coastal-port-link", name: "COASTAL PORT LINK", axis: "x", x: 1150, z: 700, width: 14, length: 100 },
+];
+
+export const SOCIETY_ROAD_CONNECTIONS: SocietyRoadConnection[] = [
+  { id: "north-gate", x: 0, z: -134, roadIds: ["central-spine-north", "north-city-approach"], districtId: "cedar-grove" },
+  { id: "north-west-arterial", x: 0, z: -400, roadIds: ["north-city-approach", "west-residential-link", "airport-east-connector"], districtId: "west-residential" },
+  { id: "west-residential-north", x: -900, z: -400, roadIds: ["west-residential-link", "west-residential-avenue"], districtId: "west-residential" },
+  { id: "west-residential-south", x: -900, z: 400, roadIds: ["west-residential-avenue", "west-downtown-connector"], districtId: "west-residential" },
+  { id: "downtown-west-junction", x: 0, z: 400, roadIds: ["west-downtown-connector", "central-downtown-extension"], districtId: "downtown" },
+  { id: "airport-junction", x: 840, z: -400, roadIds: ["airport-east-connector", "airport-north-approach"], districtId: "airport" },
+  { id: "airport-terminal-junction", x: 840, z: -580, roadIds: ["airport-north-approach", "airport-terminal-access"], districtId: "airport" },
+  { id: "airport-runway-junction", x: 840, z: -900, roadIds: ["airport-north-approach", "airport-runway-service"], districtId: "airport" },
+  { id: "cedar-south-gate", x: 0, z: 118, roadIds: ["central-spine-south", "central-downtown-extension"], districtId: "cedar-grove" },
+  { id: "downtown-freight-junction", x: 0, z: 660, roadIds: ["central-downtown-extension", "harbor-freight-east"], districtId: "downtown" },
+  { id: "industry-north", x: 500, z: 660, roadIds: ["harbor-freight-east", "industrial-collector"], districtId: "industrial" },
+  { id: "industry-south", x: 500, z: 950, roadIds: ["industrial-collector", "industry-port-connector"], districtId: "industrial" },
+  { id: "port-west", x: 1100, z: 950, roadIds: ["industry-port-connector", "port-access-road"], districtId: "port" },
+  { id: "coastal-port-junction", x: 1200, z: 700, roadIds: ["coastal-avenue", "coastal-port-link"], districtId: "port" },
+];
+
+// These three exposed road ends lead directly into areas that are not part of
+// the current release. Cedar Grove, the airport terminal, and runway access
+// remain open and usable.
+export const SOCIETY_ROAD_CLOSURES: SocietyRoadClosure[] = [
+  { id: "closure-west-residential-south", roadId: "west-residential-avenue", x: -900, z: 500, roadAxis: "z", roadWidth: 16, facingYaw: Math.PI },
+  { id: "closure-coastal-north", roadId: "coastal-avenue", x: 1200, z: -300, roadAxis: "z", roadWidth: 14, facingYaw: 0 },
+  { id: "closure-port-north", roadId: "port-access-road", x: 1100, z: 1260, roadAxis: "z", roadWidth: 16, facingYaw: Math.PI },
+];
+
+// Coastline points run from the north-east shore toward the south-east bay.
+// They define where the simple land base gives way to the ocean surface.
+export const SOCIETY_COASTLINE = [
+  { x: 1450, z: -420 },
+  { x: 1390, z: -120 },
+  { x: 1420, z: 240 },
+  { x: 1380, z: 560 },
+  { x: 1450, z: 760 },
+  { x: 1390, z: 930 },
+  { x: 1450, z: 1160 },
+  { x: 1280, z: 1450 },
+  { x: 900, z: 1536 },
 ];
 
 export const SOCIETY_INTERSECTIONS: SocietyIntersection[] = [
@@ -596,6 +734,43 @@ export const SOCIETY_START = {
   yaw: 0,
 };
 
+// The first expansion milestone uses lightweight blockout meshes. These have
+// explicit footprints so ground and aircraft collision remain aligned with
+// the rendered city landmarks.
+export const SOCIETY_LANDMARKS: SocietyLandmark[] = [
+  // Northwest range and the lower pass remain outside the main city blocks.
+  { id: "mountain-west-peak", name: "West Range", districtId: "mountains", kind: "mountain", x: -1120, z: -1160, width: 520, depth: 480, height: 300, color: "#596b5c", collidable: true },
+  { id: "mountain-north-peak", name: "North Range", districtId: "mountains", kind: "mountain", x: -730, z: -1290, width: 520, depth: 400, height: 360, color: "#67796a", collidable: true },
+  { id: "mountain-pass-peak", name: "Pass Ridge", districtId: "mountains", kind: "mountain", x: -430, z: -1050, width: 400, depth: 500, height: 260, color: "#536759", collidable: true },
+
+  // Downtown skyline blockout, south of the existing Cedar Grove avenue.
+  { id: "downtown-tower-west", name: "Civic Tower", districtId: "downtown", kind: "tower", x: -250, z: 420, width: 48, depth: 48, height: 112, color: "#61777a", collidable: true },
+  { id: "downtown-tower-center", name: "Central Tower", districtId: "downtown", kind: "tower", x: -110, z: 550, width: 58, depth: 58, height: 156, color: "#526a72", collidable: true },
+  { id: "downtown-tower-east", name: "Harborview Tower", districtId: "downtown", kind: "tower", x: 175, z: 440, width: 46, depth: 52, height: 124, color: "#71817d", collidable: true },
+  { id: "downtown-tower-south", name: "Exchange Tower", districtId: "downtown", kind: "tower", x: 160, z: 760, width: 54, depth: 58, height: 138, color: "#6d7777", collidable: true },
+
+  // A short, authored residential strip anchors the west road connection.
+  { id: "west-home-north", name: "Westfield Homes North", districtId: "west-residential", kind: "house", x: -1030, z: -170, width: 44, depth: 36, height: 14, color: "#9a927f", collidable: true },
+  { id: "west-home-central", name: "Westfield Homes Central", districtId: "west-residential", kind: "house", x: -1030, z: 40, width: 48, depth: 38, height: 16, color: "#879180", collidable: true },
+  { id: "west-home-south", name: "Westfield Homes South", districtId: "west-residential", kind: "house", x: -1030, z: 260, width: 42, depth: 38, height: 13, color: "#a79b84", collidable: true },
+
+  // Airport grounds, runway and terminal access blockout.
+  { id: "airport-runway", name: "Coastal Airport Runway", districtId: "airport", kind: "runway", x: 1120, z: -900, width: 44, depth: 650, height: 0.08, color: "#343a3b" },
+  { id: "airport-terminal", name: "Coastal Airport Terminal", districtId: "airport", kind: "terminal", x: 930, z: -510, width: 128, depth: 54, height: 22, color: "#a6aca5", collidable: true },
+  { id: "airport-hangar", name: "Airport Hangar", districtId: "airport", kind: "hangar", x: 920, z: -1080, width: 92, depth: 76, height: 24, color: "#818b87", collidable: true },
+
+  // Industrial blocks sit west of the docks; their footprints avoid the roads.
+  { id: "industry-warehouse-north", name: "North Freight Depot", districtId: "industrial", kind: "warehouse", x: 680, z: 820, width: 150, depth: 92, height: 24, color: "#777d78", collidable: true },
+  { id: "industry-warehouse-south", name: "South Freight Depot", districtId: "industrial", kind: "warehouse", x: 690, z: 1090, width: 142, depth: 96, height: 21, color: "#8a877d", collidable: true },
+
+  // A small working harbor and a pair of beach blocks establish the coastline.
+  { id: "harbor-basin", name: "Harbor Basin", districtId: "port", kind: "harbor-water", x: 1260, z: 1030, width: 260, depth: 260, height: 0.05, color: "#315d68" },
+  { id: "harbor-crane-north", name: "North Harbor Crane", districtId: "port", kind: "port-crane", x: 1030, z: 820, width: 26, depth: 28, height: 58, color: "#c76c47", collidable: true },
+  { id: "harbor-crane-south", name: "South Harbor Crane", districtId: "port", kind: "port-crane", x: 1240, z: 1220, width: 26, depth: 28, height: 52, color: "#d28a4b", collidable: true },
+  { id: "east-beach", name: "East Coast Beach", districtId: "beaches", kind: "beach", x: 1320, z: 280, width: 180, depth: 300, height: 0.12, color: "#c8b887" },
+  { id: "south-beach", name: "South Coast Beach", districtId: "beaches", kind: "beach", x: 1280, z: 1390, width: 250, depth: 90, height: 0.12, color: "#c8b887" },
+];
+
 // -------------------------------------------------------------
 // FOOTPRINT & COLLISION SYSTEM
 // -------------------------------------------------------------
@@ -678,6 +853,28 @@ export const SOCIETY_OBSTACLES = [
     z,
     width: scale * 1.2,
     depth: scale * 1.2,
+  })),
+
+  // New solid landmark blockouts share the same collision footprint source.
+  ...SOCIETY_LANDMARKS.filter((landmark) => landmark.collidable).map((landmark) => ({
+    id: landmark.id,
+    name: landmark.name,
+    category: "building" as const,
+    x: landmark.x,
+    z: landmark.z,
+    width: landmark.width,
+    depth: landmark.depth,
+  })),
+
+  // Physical closure footprints use the same collision grid as buildings.
+  ...SOCIETY_ROAD_CLOSURES.map((closure) => ({
+    id: closure.id,
+    name: "Road closure",
+    category: "closure" as const,
+    x: closure.x,
+    z: closure.z,
+    width: closure.roadAxis === "z" ? closure.roadWidth + 1 : 1,
+    depth: closure.roadAxis === "x" ? closure.roadWidth + 1 : 1,
   })),
 ];
 

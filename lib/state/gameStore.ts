@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { GraphicsQuality } from "@/game/rendering/graphicsQuality";
 
 export type GamePhase = "menu" | "racing" | "exploring" | "paused" | "finished";
 export type WorldMode = "circuit" | "society";
@@ -20,6 +21,7 @@ type GameStore = {
   worldMode: WorldMode;
   aircraftMode: boolean;
   cameraPreset: CameraPreset;
+  graphicsQuality: GraphicsQuality;
   cameraToast: string | null;
   speed: number;
   gear: Gear;
@@ -38,6 +40,7 @@ type GameStore = {
   startExploration: () => void;
   setWorldMode: (mode: WorldMode) => void;
   setCameraPreset: (preset: CameraPreset) => void;
+  setGraphicsQuality: (quality: GraphicsQuality) => void;
   cycleCameraPreset: () => void;
   setAircraftMode: (active: boolean) => void;
   updateFlightTelemetry: (telemetry: FlightTelemetry, speed: number) => void;
@@ -97,6 +100,7 @@ export const useGameStore = create<GameStore>((set) => ({
   worldMode: "circuit",
   aircraftMode: false,
   cameraPreset: "standard",
+  graphicsQuality: "medium",
   cameraToast: null,
   ...resetTelemetry,
   resetToken: 0,
@@ -104,6 +108,7 @@ export const useGameStore = create<GameStore>((set) => ({
   startExploration: () => set((state) => ({ phase: "exploring", worldMode: "society", aircraftMode: false, ...resetTelemetry, resetToken: state.resetToken + 1 })),
   setWorldMode: (worldMode) => set((state) => ({ worldMode, aircraftMode: false, resetToken: state.resetToken + 1 })),
   setCameraPreset: (cameraPreset) => set({ cameraPreset, cameraToast: `VIEW: ${cameraPreset.toUpperCase()}` }),
+  setGraphicsQuality: (graphicsQuality) => set({ graphicsQuality }),
   cycleCameraPreset: () => set((state) => {
     const next = CAMERA_CYCLE[state.cameraPreset];
     return { cameraPreset: next, cameraToast: `VIEW: ${next.toUpperCase()}` };

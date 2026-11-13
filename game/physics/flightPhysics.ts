@@ -1,7 +1,8 @@
 import type { ControllerControls } from "../input/ControllerInputSource";
 import {
   SOCIETY_BUILDINGS,
-  SOCIETY_LIMIT,
+  SOCIETY_WORLD_BOUNDS,
+  SOCIETY_LANDMARKS,
   SOCIETY_OBSTACLES,
   SOCIETY_START,
   SOCIETY_TREES,
@@ -52,18 +53,64 @@ export function resetFlightSimulation(simulation: FlightSimulation) {
 const buildingHeights = new Map(SOCIETY_BUILDINGS.map((building) => [building.id, building.height]));
 const wallHeights = new Map(SOCIETY_WALLS.map((wall) => [wall.id, wall.height]));
 const treeHeights = new Map(SOCIETY_TREES.map((tree) => [tree.id, tree.scale * 7.4]));
+const landmarkHeights = new Map(SOCIETY_LANDMARKS.map((landmark) => [landmark.id, landmark.height]));
+const FLIGHT_COLLISION_CELL_SIZE = 48;
+const FLIGHT_COLLISION_GRID_WIDTH = Math.ceil(
+  (SOCIETY_WORLD_BOUNDS.maxX - SOCIETY_WORLD_BOUNDS.minX) / FLIGHT_COLLISION_CELL_SIZE,
+);
+type FlightObstacle = (typeof SOCIETY_OBSTACLES)[number] & { height: number };
+const flightCollisionGrid = new Map<number, FlightObstacle[]>();
 
 function obstacleHeight(id: string) {
-  return buildingHeights.get(id) ?? wallHeights.get(id) ?? treeHeights.get(id) ?? 2.2;
+  return buildingHeights.get(id) ?? wallHeights.get(id) ?? treeHeights.get(id) ?? landmarkHeights.get(id) ?? 2.2;
 }
 
-function intersectsWorldObstacle(x: number, y: number, z: number) {
+function getFlightCollisionCell(x: number, z: number) {
+  const cellX = Math.floor((x - SOCIETY_WORLD_BOUNDS.minX) / FLIGHT_COLLISION_CELL_SIZE);
+  const cellZ = Math.floor((z - SOCIETY_WORLD_BOUNDS.minZ) / FLIGHT_COLLISION_CELL_SIZE);
+  if (cellX < 0 || cellX >= FLIGHT_COLLISION_GRID_WIDTH || cellZ < 0 || cellZ >= FLIGHT_COLLISION_GRID_WIDTH) return -1;
+  return cellZ * FLIGHT_COLLISION_GRID_WIDTH + cellX;
+}
+
+// Index each static obstacle into every cell crossed by its footprint plus the
+// aircraft radius. This preserves the former AABB test while skipping distant
+// scenery during the per-frame flight collision query.
+SOCIETY_OBSTACLES.forEach((obstacle) => {
+  const indexedObstacle: FlightObstacle = { ...obstacle, height: obstacleHeight(obstacle.id) };
+  const radius = 3.2;
+  const minCellX = Math.max(0, Math.floor((obstacle.x - obstacle.width / 2 - radius - SOCIETY_WORLD_BOUNDS.minX) / FLIGHT_COLLISION_CELL_SIZE));
+  const maxCellX = Math.min(FLIGHT_COLLISION_GRID_WIDTH - 1, Math.floor((obstacle.x + obstacle.width / 2 + radius - SOCIETY_WORLD_BOUNDS.minX) / FLIGHT_COLLISION_CELL_SIZE));
+  const minCellZ = Math.max(0, Math.floor((obstacle.z - obstacle.depth / 2 - radius - SOCIETY_WORLD_BOUNDS.minZ) / FLIGHT_COLLISION_CELL_SIZE));
+  const maxCellZ = Math.min(FLIGHT_COLLISION_GRID_WIDTH - 1, Math.floor((obstacle.z + obstacle.depth / 2 + radius - SOCIETY_WORLD_BOUNDS.minZ) / FLIGHT_COLLISION_CELL_SIZE));
+
+  for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+      const cellIndex = cellZ * FLIGHT_COLLISION_GRID_WIDTH + cellX;
+      let cell = flightCollisionGrid.get(cellIndex);
+      if (!cell) {
+        cell = [];
+        flightCollisionGrid.set(cellIndex, cell);
+      }
+      cell.push(indexedObstacle);
+    }
+  }
+});
+
+function intersectsWorldObstacle(x: number, y: number, z: number, closuresOnly = false) {
   const aircraftRadius = 3.2;
-  return SOCIETY_OBSTACLES.some((obstacle) => {
+  const cell = flightCollisionGrid.get(getFlightCollisionCell(x, z));
+  if (!cell) return false;
+  for (let index = 0; index < cell.length; index += 1) {
+    const obstacle = cell[index];
     if (Math.abs(x - obstacle.x) > obstacle.width / 2 + aircraftRadius
-      || Math.abs(z - obstacle.z) > obstacle.depth / 2 + aircraftRadius) return false;
-    return y - 1.3 < obstacleHeight(obstacle.id);
-  });
+      || Math.abs(z - obstacle.z) > obstacle.depth / 2 + aircraftRadius) continue;
+    // Road closures are also flight exclusion planes: aircraft cannot bypass
+    // unfinished district gates by flying over the road barricade.
+    if (obstacle.category === "closure") return true;
+    if (closuresOnly) continue;
+    if (y - 1.3 < obstacle.height) return true;
+  }
+  return false;
 }
 
 export function stepFlightSimulation(
@@ -129,10 +176,15 @@ export function stepFlightSimulation(
     }
   }
 
-  const outsideWorld = Math.abs(simulation.x) > SOCIETY_LIMIT - 6
-    || Math.abs(simulation.z) > SOCIETY_LIMIT - 6
+  const outsideWorld = simulation.x < SOCIETY_WORLD_BOUNDS.minX + 6
+    || simulation.x > SOCIETY_WORLD_BOUNDS.maxX - 6
+    || simulation.z < SOCIETY_WORLD_BOUNDS.minZ + 6
+    || simulation.z > SOCIETY_WORLD_BOUNDS.maxZ - 6
     || simulation.y > MAX_ALTITUDE;
-  if (outsideWorld || (!simulation.grounded && intersectsWorldObstacle(simulation.x, simulation.y, simulation.z))) {
+  const collidesWithWorld = simulation.grounded
+    ? intersectsWorldObstacle(simulation.x, simulation.y, simulation.z, true)
+    : intersectsWorldObstacle(simulation.x, simulation.y, simulation.z);
+  if (outsideWorld || collidesWithWorld) {
     simulation.crashed = true;
     simulation.speed = 0;
     simulation.verticalSpeed = 0;

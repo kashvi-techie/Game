@@ -6,6 +6,7 @@ import { CuboidCollider, RigidBody } from "@react-three/rapier";
 import {
   BoxGeometry,
   CanvasTexture,
+  ConeGeometry,
   CylinderGeometry,
   DoubleSide,
   Group,
@@ -16,6 +17,8 @@ import {
   Object3D,
   SphereGeometry,
   SRGBColorSpace,
+  Shape,
+  ShapeGeometry,
 } from "three";
 import { arcadeAudio } from "@/game/audio/ArcadeAudio";
 import {
@@ -27,15 +30,19 @@ import {
   SECONDARY_ROAD_WIDTH,
   SIDEWALK_WIDTH,
   SOCIETY_BUILDINGS,
+  SOCIETY_COASTLINE,
+  SOCIETY_LANDMARKS,
   SOCIETY_INTERSECTIONS,
   SOCIETY_PARK,
   SOCIETY_PARKED_CARS,
   SOCIETY_PARKING,
   SOCIETY_ROADS,
+  SOCIETY_ROAD_CLOSURES,
   SOCIETY_ROUNDABOUT,
   SOCIETY_TENNIS_COURT,
   SOCIETY_TREES,
   SOCIETY_WALLS,
+  SOCIETY_WORLD_BOUNDS,
   STATIC_LIVING_NPCS,
   type PedestrianNPC,
   type PedestrianRoute,
@@ -362,17 +369,107 @@ function SidewalksAndCurbs() {
 }
 
 function RoadSurfaces() {
+  const roadMesh = useRef<InstancedMesh>(null);
+  const roadTransforms = useMemo(() => SOCIETY_ROADS.map((road) => {
+    const isX = road.axis === "x";
+    return {
+      x: road.x,
+      y: 0.03,
+      z: road.z,
+      sx: isX ? road.length : road.width,
+      sy: 0.06,
+      sz: isX ? road.width : road.length,
+    };
+  }), []);
+  const roadGeometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
+  const roadMaterial = useMemo(() => new MeshStandardMaterial({ color: "#2d3336", roughness: 0.92 }), []);
+
+  useLayoutEffect(() => {
+    populateInstances(roadMesh.current, roadTransforms);
+  }, [roadTransforms]);
+
+  return (
+    <instancedMesh ref={roadMesh} args={[roadGeometry, roadMaterial, roadTransforms.length]} receiveShadow />
+  );
+}
+
+function ExpansionWorldFeatures() {
+  const waterGeometry = useMemo(() => {
+    const shape = new Shape();
+    const coastline = SOCIETY_COASTLINE;
+    shape.moveTo(coastline[0].x, -coastline[0].z);
+    for (let index = 1; index < coastline.length; index += 1) {
+      shape.lineTo(coastline[index].x, -coastline[index].z);
+    }
+    shape.lineTo(SOCIETY_WORLD_BOUNDS.maxX, -SOCIETY_WORLD_BOUNDS.maxZ);
+    shape.lineTo(SOCIETY_WORLD_BOUNDS.maxX, -SOCIETY_WORLD_BOUNDS.minZ);
+    shape.lineTo(coastline[0].x, -coastline[0].z);
+    return new ShapeGeometry(shape);
+  }, []);
+  const blockGeometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
+  const mountainGeometry = useMemo(() => new ConeGeometry(0.5, 1, 7), []);
+  const stripeGeometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
+  const materials = useMemo(() => {
+    const result = new Map<string, MeshStandardMaterial>();
+    SOCIETY_LANDMARKS.forEach(({ color, kind }) => {
+      if (!result.has(color)) result.set(color, new MeshStandardMaterial({
+        color,
+        roughness: kind === "harbor-water" ? 0.42 : 0.84,
+        metalness: kind === "harbor-water" ? 0.08 : 0.02,
+      }));
+    });
+    result.set("#d9d8cf", new MeshStandardMaterial({ color: "#d9d8cf", roughness: 0.88 }));
+    return result;
+  }, []);
+  const runwayStripeMesh = useRef<InstancedMesh>(null);
+  const runwayStripes = useMemo(() => Array.from({ length: 20 }, (_, index) => ({
+    x: 1120,
+    y: 0.105,
+    z: -1200 + index * 31,
+    sx: 1.2,
+    sy: 0.025,
+    sz: 16,
+  })), []);
+  const stripeMaterial = materials.get("#d9d8cf")!;
+
+  useLayoutEffect(() => {
+    populateInstances(runwayStripeMesh.current, runwayStripes);
+  }, [runwayStripes]);
+
   return (
     <group>
-      {SOCIETY_ROADS.map((road) => {
-        const isX = road.axis === "x";
+      <mesh geometry={waterGeometry} position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#315d68" roughness={0.38} metalness={0.08} />
+      </mesh>
+      {SOCIETY_LANDMARKS.map((landmark) => {
+        const material = materials.get(landmark.color)!;
+        if (landmark.kind === "mountain") {
+          return (
+            <mesh key={landmark.id} geometry={mountainGeometry} material={material}
+              position={[landmark.x, landmark.height / 2 - 0.05, landmark.z]}
+              scale={[landmark.width, landmark.height, landmark.depth]} castShadow receiveShadow />
+          );
+        }
+        if (landmark.kind === "port-crane") {
+          return (
+            <group key={landmark.id} position={[landmark.x, 0, landmark.z]}>
+              <mesh geometry={blockGeometry} material={material} position={[-landmark.width * 0.36, landmark.height / 2, 0]} scale={[landmark.width * 0.16, landmark.height, landmark.depth * 0.16]} castShadow />
+              <mesh geometry={blockGeometry} material={material} position={[landmark.width * 0.36, landmark.height / 2, 0]} scale={[landmark.width * 0.16, landmark.height, landmark.depth * 0.16]} castShadow />
+              <mesh geometry={blockGeometry} material={material} position={[0, landmark.height * 0.92, 0]} scale={[landmark.width, landmark.height * 0.12, landmark.depth * 0.18]} castShadow />
+            </group>
+          );
+        }
+        const y = landmark.kind === "runway" || landmark.kind === "beach" || landmark.kind === "harbor-water"
+          ? landmark.height / 2 - 0.04
+          : landmark.height / 2;
         return (
-          <mesh key={road.id} position={[road.x, 0.03, road.z]} receiveShadow>
-            <boxGeometry args={[isX ? road.length : road.width, 0.06, isX ? road.width : road.length]} />
-            <meshStandardMaterial color="#2d3336" roughness={0.92} />
-          </mesh>
+          <mesh key={landmark.id} geometry={blockGeometry} material={material}
+            position={[landmark.x, y, landmark.z]}
+            scale={[landmark.width, landmark.height, landmark.depth]}
+            castShadow={landmark.height > 1} receiveShadow={landmark.height > 1} />
         );
       })}
+      <instancedMesh ref={runwayStripeMesh} args={[stripeGeometry, stripeMaterial, runwayStripes.length]} />
     </group>
   );
 }
@@ -1452,6 +1549,91 @@ function SocietyBoundaries() {
   );
 }
 
+// Shared, world-space closure signs keep the unfinished road ends clear while
+// leaving the Cedar Grove gate, airport terminal, and runway service road open.
+function createRoadClosureSignTexture() {
+  if (typeof document === "undefined") {
+    return new CanvasTexture(null as unknown as HTMLCanvasElement);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (!context) return new CanvasTexture(canvas);
+  context.fillStyle = "#172326";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#d5f05d";
+  context.fillRect(0, 0, 18, canvas.height);
+  context.fillStyle = "#f3f1e7";
+  context.font = "800 72px Arial, sans-serif";
+  context.fillText("MORE OF THE CITY", 58, 105, 920);
+  context.fillStyle = "#d5f05d";
+  context.font = "700 42px Arial, sans-serif";
+  context.fillText("COMING SOON  ·  NEXT UPDATE", 60, 190, 910);
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
+function SocietyRoadClosures() {
+  const signTexture = useMemo(() => createRoadClosureSignTexture(), []);
+  const boardGeometry = useMemo(() => new BoxGeometry(1, 1, 0.3), []);
+  const signGeometry = useMemo(() => new BoxGeometry(1, 1, 0.3), []);
+  const postGeometry = useMemo(() => new BoxGeometry(0.22, 1, 0.22), []);
+  const stripeGeometry = useMemo(() => new BoxGeometry(1, 1, 0.08), []);
+  const orangeMaterial = useMemo(() => new MeshStandardMaterial({ color: "#e47a2d", roughness: 0.78 }), []);
+  const paleMaterial = useMemo(() => new MeshStandardMaterial({ color: "#f1eee3", roughness: 0.72 }), []);
+  const darkMaterial = useMemo(() => new MeshStandardMaterial({ color: "#263236", roughness: 0.82 }), []);
+  const signMaterial = useMemo(() => new MeshBasicMaterial({ map: signTexture, toneMapped: false, side: DoubleSide }), [signTexture]);
+
+  return (
+    <group>
+      {SOCIETY_ROAD_CLOSURES.map((closure) => {
+        const acrossRoad = closure.roadAxis === "z";
+        const width = closure.roadWidth + 1;
+        const rotationY = acrossRoad ? 0 : Math.PI / 2;
+        const localSignYaw = closure.facingYaw - rotationY;
+        const signWidth = Math.min(11, width - 1.8);
+        return (
+          <RigidBody
+            key={closure.id}
+            type="fixed"
+            colliders={false}
+            position={[closure.x, 0.72, closure.z]}
+            rotation={[0, rotationY, 0]}
+          >
+            <CuboidCollider args={[acrossRoad ? width / 2 : 0.58, 0.72, acrossRoad ? 0.58 : width / 2]} />
+            <mesh geometry={boardGeometry} material={orangeMaterial} position={[0, 0, 0]} scale={[width, 0.88, 1]} castShadow receiveShadow />
+            {Array.from({ length: 6 }, (_, index) => {
+              const stripeX = -width * 0.42 + (width * 0.84 * index) / 5;
+              return (
+                <mesh
+                  key={`${closure.id}-stripe-${index}`}
+                  geometry={stripeGeometry}
+                  material={index % 2 === 0 ? paleMaterial : orangeMaterial}
+                  position={[stripeX, 0, 0.18]}
+                  rotation={[0, 0, -0.32]}
+                  scale={[0.62, 0.88, 1]}
+                />
+              );
+            })}
+            <mesh geometry={postGeometry} material={darkMaterial} position={[-width * 0.4, 0.55, 0]} scale={[1, 2.2, 1]} castShadow />
+            <mesh geometry={postGeometry} material={darkMaterial} position={[width * 0.4, 0.55, 0]} scale={[1, 2.2, 1]} castShadow />
+            <mesh geometry={signGeometry} material={darkMaterial} position={[0, 2.15, 0]} scale={[signWidth, 1.42, 1]} castShadow />
+            <mesh
+              geometry={signGeometry}
+              material={signMaterial}
+              position={[Math.sin(localSignYaw) * 0.17, 2.15, Math.cos(localSignYaw) * 0.17]}
+              rotation={[0, localSignYaw, 0]}
+              scale={[signWidth - 0.2, 1.3, 0.08]}
+            />
+          </RigidBody>
+        );
+      })}
+    </group>
+  );
+}
+
 // -------------------------------------------------------------
 // ANIMATED NPC PEDESTRIANS
 // -------------------------------------------------------------
@@ -2178,9 +2360,11 @@ export default function SocietyWorld({
     <group>
       {/* Broad Landscape Ground Base Plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-        <planeGeometry args={[540, 540]} />
+        <planeGeometry args={[SOCIETY_WORLD_BOUNDS.maxX - SOCIETY_WORLD_BOUNDS.minX, SOCIETY_WORLD_BOUNDS.maxZ - SOCIETY_WORLD_BOUNDS.minZ]} />
         <meshStandardMaterial color="#47633f" roughness={0.98} />
       </mesh>
+
+      <ExpansionWorldFeatures />
 
       {/* Street & Road System */}
       <RoadSurfaces />
@@ -2201,6 +2385,7 @@ export default function SocietyWorld({
       {/* Gate Portal & Boundary */}
       <EntrancePortal />
       <SocietyBoundaries />
+      <SocietyRoadClosures />
 
       {/* Park, Sports, Amenities, Furniture */}
       <CentralPark />

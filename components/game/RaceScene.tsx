@@ -8,6 +8,7 @@ import {
   BufferGeometry,
   CylinderGeometry,
   DoubleSide,
+  DirectionalLight,
   Float32BufferAttribute,
   Group,
   MathUtils,
@@ -22,6 +23,7 @@ import SocietyWorld from "@/components/game/SocietyWorld";
 import { createOpenWorldSimulation, isOpenWorldCameraClear, recoverOpenWorldSimulation, stepOpenWorldSimulation } from "@/game/physics/openWorldPhysics";
 import { createFlightSimulation, FLIGHT_GROUND_HEIGHT, resetFlightSimulation, stepFlightSimulation, type FlightSimulation } from "@/game/physics/flightPhysics";
 import { useGameStore, type CameraPreset, type Gear, type WorldMode } from "@/lib/state/gameStore";
+import { GRAPHICS_QUALITY_PRESETS } from "@/game/rendering/graphicsQuality";
 import { useInput } from "@/game/input/useInput";
 import { SOCIETY_START, SOCIETY_ROADS } from "@/game/world/societyLayout";
 import {
@@ -1064,6 +1066,39 @@ class RendererErrorBoundary extends Component<{ children: ReactNode; onFailure: 
   }
 }
 
+function DynamicShadowLight({ quality, positionSource }: {
+  quality: (typeof GRAPHICS_QUALITY_PRESETS)[keyof typeof GRAPHICS_QUALITY_PRESETS];
+  positionSource: () => { x: number; z: number; y?: number };
+}) {
+  const light = useRef<DirectionalLight>(null);
+
+  useFrame(() => {
+    const source = positionSource();
+    if (!light.current) return;
+    const height = source.y ?? 0;
+    light.current.position.set(source.x - 50, height + 75, source.z - 20);
+    light.current.target.position.set(source.x, 0, source.z);
+    light.current.target.updateMatrixWorld(true);
+  });
+
+  return (
+    <directionalLight
+      ref={light}
+      position={[-50, 75, -20]}
+      intensity={2.8}
+      castShadow={quality.shadowsEnabled}
+      shadow-mapSize-width={quality.shadowMapSize}
+      shadow-mapSize-height={quality.shadowMapSize}
+      shadow-bias={-0.0006}
+      shadow-camera-left={-quality.shadowExtent}
+      shadow-camera-right={quality.shadowExtent}
+      shadow-camera-top={quality.shadowExtent}
+      shadow-camera-bottom={-quality.shadowExtent}
+      shadow-camera-far={Math.max(260, quality.shadowExtent * 2.2)}
+    />
+  );
+}
+
 function World({ phase, worldMode, resetToken, introActive, introRunId, motionEnabled, onIntroComplete }: {
   phase: string;
   worldMode: WorldMode;
@@ -1078,6 +1113,12 @@ function World({ phase, worldMode, resetToken, introActive, introRunId, motionEn
   const societySimulationRef = useRef(createOpenWorldSimulation());
   const flightSimulationRef = useRef(createFlightSimulation());
   const activeSimulationRef = worldMode === "society" ? societySimulationRef : raceSimulationRef;
+  const aircraftMode = useGameStore((state) => state.aircraftMode);
+  const graphicsQuality = useGameStore((state) => state.graphicsQuality);
+  const graphics = GRAPHICS_QUALITY_PRESETS[graphicsQuality];
+  const shadowPositionSource = () => worldMode === "society" && aircraftMode
+    ? flightSimulationRef.current
+    : activeSimulationRef.current;
 
   return (
     <>
@@ -1092,23 +1133,11 @@ function World({ phase, worldMode, resetToken, introActive, introRunId, motionEn
         onIntroComplete={onIntroComplete}
       />
       <color attach="background" args={["#9db6ba"]} />
-      <fog attach="fog" args={["#9db6ba", 110, 270]} />
+      <fog attach="fog" args={["#9db6ba", graphics.fogNear, graphics.fogFar]} />
       <Sky sunPosition={[65, 30, -75]} turbidity={3.8} rayleigh={1.2} />
       <ambientLight intensity={0.85} />
       <hemisphereLight color="#e6f1f3" groundColor="#3e523b" intensity={1.25} />
-      <directionalLight
-        position={[-50, 75, -20]}
-        intensity={2.8}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-bias={-0.0006}
-        shadow-camera-left={-140}
-        shadow-camera-right={140}
-        shadow-camera-top={140}
-        shadow-camera-bottom={-140}
-        shadow-camera-far={260}
-      />
+      <DynamicShadowLight key={graphicsQuality} quality={graphics} positionSource={shadowPositionSource} />
       <Physics gravity={[0, -9.81, 0]} timeStep="vary">
         {worldMode === "society" ? (
           <SocietyWorld playerSimulationRef={societySimulationRef} input={input} />
@@ -1148,14 +1177,16 @@ export default function RaceScene({ introActive, introRunId, motionEnabled, onIn
   const phase = useGameStore((state) => state.phase);
   const worldMode = useGameStore((state) => state.worldMode);
   const resetToken = useGameStore((state) => state.resetToken);
+  const graphicsQuality = useGameStore((state) => state.graphicsQuality);
+  const graphics = GRAPHICS_QUALITY_PRESETS[graphicsQuality];
 
   return (
     <RendererErrorBoundary onFailure={onIntroComplete}>
       <Canvas
         fallback={<WebGLFallback onUnavailable={onIntroComplete} />}
-        shadows
-        camera={{ position: [0, 8, -64], fov: 48, near: 0.1, far: 400 }}
-        dpr={[1, 1.5]}
+        shadows={graphics.shadowsEnabled}
+        camera={{ position: [0, 8, -64], fov: 48, near: 0.1, far: graphics.cameraFar }}
+        dpr={[1, graphics.pixelRatioCap]}
       >
         <World
           phase={phase}

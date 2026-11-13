@@ -4,6 +4,8 @@ export class InputManager {
   private active = false;
   private smoothedSteering = 0;
   private lastTime = 0;
+  private lastReadAt = 0;
+  private cachedControls: ControllerControls = neutralControls;
 
   constructor(private readonly keyboardSource: ControllerInputSource) {}
 
@@ -16,6 +18,8 @@ export class InputManager {
     this.keyboardSource.start();
     this.smoothedSteering = 0;
     this.lastTime = performance.now();
+    this.lastReadAt = 0;
+    this.cachedControls = neutralControls;
     this.active = true;
   }
 
@@ -76,6 +80,11 @@ export class InputManager {
     if (!this.active) return neutralControls;
 
     const now = performance.now();
+    // R3F invokes many useFrame callbacks in one browser frame. Sample the
+    // keyboard/gamepad once per frame-sized interval and share that snapshot.
+    // This keeps NPC horn checks from polling navigator.getGamepads repeatedly.
+    if (now - this.lastReadAt < 1000 / 120) return this.cachedControls;
+    this.lastReadAt = now;
     const dt = Math.min((now - (this.lastTime || now)) / 1000, 0.05);
     this.lastTime = now;
 
@@ -123,7 +132,7 @@ export class InputManager {
       this.smoothedSteering = 0;
     }
 
-    return {
+    this.cachedControls = {
       steering: Math.max(-1, Math.min(1, this.smoothedSteering)),
       throttle,
       brake,
@@ -138,5 +147,6 @@ export class InputManager {
       interact,
       toggleGear,
     };
+    return this.cachedControls;
   }
 }
